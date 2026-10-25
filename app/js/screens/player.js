@@ -199,7 +199,8 @@
       if (!force && now - saveAt < 10000) return;
       saveAt = now;
       var t = v.currentTime, d = v.duration;
-      Store.setProgress(p.playlist.id, item.key, (isFinite(d) && t > d - 45) || t < 20 ? 0 : t);
+      Store.setProgress(p.playlist.id, item.key, (isFinite(d) && t > d - 45) || t < 20 ? 0 : t, isFinite(d) ? d : 0,
+                        IPTV.Continue.metaFor(item, p.series));
     }
 
     // ---- seeking ---------------------------------------------------------------

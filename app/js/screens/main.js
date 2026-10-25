@@ -94,7 +94,8 @@
       return h('div', { className: 'poster' }, [
         h('div', { className: 'po-img' }, [h('span', { className: 'po-fallback', text: it.name }), it.logo ? poster(it) : null,
           fav ? h('span', { className: 'star', text: '★' }) : null,
-          it.rating && Number(it.rating) > 0 ? h('span', { className: 'po-rating', text: '★ ' + Number(it.rating).toFixed(1) }) : null]),
+          it.rating && Number(it.rating) > 0 ? h('span', { className: 'po-rating', text: '★ ' + Number(it.rating).toFixed(1) }) : null,
+          it.progress > 0 ? h('div', { className: 'po-prog' }, h('i', { style: { width: Math.round(it.progress * 100) + '%' } })) : null]),
         h('div', { className: 'po-title', text: it.name })
       ]);
     }
@@ -128,16 +129,27 @@
       for (var i = 0; i < section.items.length; i++) if (favs[section.items[i].key]) nf++;
       var list = [{ id: '*', name: 'All', count: section.items.length }, { id: '__fav', name: '★ Favorites', count: nf }];
       if (kind !== 'series') list.push({ id: '__recent', name: 'Recently watched', count: recentItems().length });
+      var cont = continueItems().length;
+      if (cont) list.unshift({ id: '__continue', name: '\u25B6 Continue watching', count: cont });
       return list;
     }
 
-    function recentItems() {
-      var keyMap = section.keyMap || (section.keyMap = (function () {
-        var m = {};
+    function keyMap() {
+      if (!section.keyMap) {
+        var m = section.keyMap = {};
         for (var i = 0; i < section.items.length; i++) m[section.items[i].key] = section.items[i];
-        return m;
-      })());
-      return Store.recents(pl.id, kind === 'live' ? 'live' : 'vod').map(function (k) { return keyMap[k]; }).filter(Boolean);
+      }
+      return section.keyMap;
+    }
+
+    function recentItems() {
+      var map = keyMap();
+      return Store.recents(pl.id, kind === 'live' ? 'live' : 'vod').map(function (k) { return map[k]; }).filter(Boolean);
+    }
+
+    /** Unfinished movies (Movies tab) / latest unfinished episode per series (Series tab). */
+    function continueItems() {
+      return kind === 'live' ? [] : IPTV.Continue.items(Store.progressEntries(pl.id), kind, keyMap());
     }
 
     function selectKind(k) {
@@ -156,6 +168,7 @@
         section = sec;
         showAge();
         content.setMessage('');
+        if (continueItems().length) catId = '__continue';     // most common thing to want on the Movies / Series tabs
         refreshCats(0);
         applyFilter(0);
         focusZone(sec.items.length ? 'content' : 'cats');
@@ -188,6 +201,7 @@
         var favs = Store.favs(pl.id);
         list = section.items.filter(function (it) { return favs[it.key]; });
       } else if (catId === '__recent') list = recentItems();
+      else if (catId === '__continue') list = continueItems();
       else list = section.byCat[catId] || [];
       filtered = list;
       if (keepKey) {            // a background refresh swapped the data: stay on the same item
@@ -202,7 +216,9 @@
     }
 
     function openItem(it, i) {
-      if (it.kind === 'series') {
+      if (it.kind === 'episode') {
+        IPTV.Router.push(IPTV.Screens.Series(), { item: it.series, provider: provider, playlist: pl, focusKey: it.key });
+      } else if (it.kind === 'series') {
         IPTV.Router.push(IPTV.Screens.Series(), { item: it, provider: provider, playlist: pl });
       } else {
         IPTV.Router.push(IPTV.Screens.Player(), { list: filtered, index: i, provider: provider, playlist: pl, kind: it.kind });
@@ -348,7 +364,7 @@
         // favorites / recents may have changed in the player
         if (section) {
           refreshCats();
-          if (!query && (catId === '__fav' || catId === '__recent')) applyFilter(content.index);
+          if (!query && (catId === '__fav' || catId === '__recent' || catId === '__continue')) applyFilter(content.index);
           else content.refresh();
         }
       },

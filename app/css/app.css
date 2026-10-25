@@ -127,6 +127,8 @@ body.playing #video { visibility: visible; }
 .po-fallback { position: absolute; left: 0; right: 0; top: 40%; padding: 0 12px; text-align: center; color: var(--dim); font-size: 22px; }
 .po-img .star { position: absolute; right: 10px; top: 4px; text-shadow: 0 1px 4px #000; }
 .po-rating { position: absolute; left: 8px; bottom: 8px; padding: 3px 10px; border-radius: 6px; background: rgba(0, 0, 0, .75); font-size: 20px; color: var(--star); }
+.po-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 8px; background: rgba(0, 0, 0, .65); }
+.po-prog i { display: block; height: 100%; background: var(--accent2); }
 .po-title { height: 56px; line-height: 56px; font-size: 22px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vcell.sel > .poster { background: transparent !important; box-shadow: none !important; }
 .vgrid.active .vcell.sel > .poster { box-shadow: none; background: transparent; }

@@ -88,14 +88,14 @@
       write('recent.' + pid, all);
     },
 
-    // ---- resume points: key -> [seconds, savedAt] ------------------------
+    // ---- resume points: key -> [seconds, savedAt, duration, meta] ---------------------------------------------
     getProgress: function (pid, key) {
       var p = read('progress.' + pid, {})[key];
       return p ? p[0] : 0;
     },
-    setProgress: function (pid, key, seconds) {
+    setProgress: function (pid, key, seconds, duration, meta) {
       var all = read('progress.' + pid, {});
-      if (seconds > 0) all[key] = [Math.floor(seconds), Date.now()];
+      if (seconds > 0) all[key] = [Math.floor(seconds), Date.now(), Math.floor(duration || 0), meta || (all[key] && all[key][3]) || null];
       else delete all[key];
       var keys = Object.keys(all);
       if (keys.length > MAX_PROGRESS) {
@@ -103,6 +103,13 @@
         for (var i = 0; i < keys.length - MAX_PROGRESS; i++) delete all[keys[i]];
       }
       write('progress.' + pid, all);
+    },
+    /** All unfinished titles, newest first: [{key, seconds, at, duration, meta}] */
+    progressEntries: function (pid) {
+      var all = read('progress.' + pid, {});
+      return Object.keys(all).map(function (k) {
+        return { key: k, seconds: all[k][0], at: all[k][1], duration: all[k][2] || 0, meta: all[k][3] || null };
+      }).sort(function (a, b) { return b.at - a.at; });
     },
 
     clearAll: function () {

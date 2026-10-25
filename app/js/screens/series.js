@@ -33,7 +33,8 @@
         ]);
       },
       onSelect: function (e, i) {
-        IPTV.Router.push(IPTV.Screens.Player(), { list: episodes.items, index: i, provider: p.provider, playlist: p.playlist, kind: 'episode' });
+        IPTV.Router.push(IPTV.Screens.Player(), { list: episodes.items, index: i, provider: p.provider, playlist: p.playlist, kind: 'episode',
+          series: { id: p.item.id, name: info ? info.title : p.item.name, logo: (info && info.cover) || p.item.logo } });
       },
       onPointer: function () { activate(1); }
     });
@@ -74,7 +75,10 @@
           plot.textContent = i.plot;
           meta.textContent = [i.genre, i.rating ? '★ ' + i.rating : ''].filter(Boolean).join('   ·   ');
           seasons.setMessage(i.seasons.length ? '' : 'No episodes found');
-          seasons.setItems(i.seasons, 0);
+          var si = 0, ei = 0;                      // opened from "Continue watching": land on that episode
+          if (p.focusKey) i.seasons.forEach(function (sn, a) { sn.episodes.forEach(function (e, b) { if (e.key === p.focusKey) { si = a; ei = b; } }); });
+          seasons.setItems(i.seasons, si);
+          if (ei) episodes.setIndex(ei);
           activate(i.seasons.length ? 1 : 0);
         }).catch(function (e) { seasons.setMessage(e.message); });
       },

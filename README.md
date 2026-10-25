@@ -19,6 +19,8 @@ You bring your own playlist or provider login; the app ships with **no channels 
 - **Saved playlists**: the downloaded catalog is kept on the TV (IndexedDB), so the next start is instant and needs no
   request. It refreshes in the background (Settings: every start / 6 h / 1 day / only when you press Blue) and swaps in place
   without losing your spot. If the provider is down or slow, the saved copy is shown instead of an error
+- **Continue watching**: the Movies and Series tabs open on your unfinished titles with a progress bar; an episode opens its
+  series on that episode. Finished titles drop off the list
 - Resume where you left off, auto-play next episode, aspect cycling, audio-track switching, auto-retry on dropped live streams
 - Live: CH+/CH- zapping, number-key channel entry, channel drawer (OK)
 - HLS through the TV's native player, or **hls.js** (Settings) with a configurable read-ahead for movies
@@ -122,6 +124,7 @@ app/                 the webOS app (this folder is what ares-package ships)
   js/xtream.js       Xtream Codes API client (also runs in Node)
   js/cache-player.js smart cache: MP4 over MediaSource, read-ahead, eviction, refill policy (policy is unit-tested)
   js/library-cache.js saved playlists (IndexedDB) + refresh policy
+  js/continue.js     "Continue watching" list building (unit-tested)
   js/timeentry.js    "type a time" entry
   js/engine.js       <video> + hls.js + smart cache wrapper, retries, stall watchdog
   js/widgets.js      VirtualGrid (windowed list/grid), ListZone (buttons/inputs/selects)
@@ -141,7 +144,7 @@ tests/                  unit + e2e
 ## Not implemented yet
 
 XMLTV EPG for plain M3U playlists and a channel guide grid, subtitles, catch-up/timeshift, parental lock/PIN, movie detail pages
-(plot, cast, trailer), a "continue watching" row, entering playlists from a phone, MKV caching, multi-view/PiP, Stalker portals, UI translations/RTL.
+(plot, cast, trailer), entering playlists from a phone, MKV caching, multi-view/PiP, Stalker portals, UI translations/RTL.
 
 Plain-M3U movies/series are detected only from Xtream-style URLs (`/movie/`, `/series/`) or video file extensions; everything else is Live.
 Browsers cannot send custom HTTP headers for media, so `|User-Agent=...` suffixes in M3U URLs are ignored.
