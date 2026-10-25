@@ -1,0 +1,20 @@
+{
+  "name": "iptv-for-all",
+  "version": "0.1.0",
+  "description": "Open-source IPTV player for LG webOS TVs (M3U + Xtream Codes).",
+  "private": true,
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "node tools/mock-server.mjs",
+    "mock:media": "sh tools/make-test-media.sh",
+    "test": "node --test tests/unit/*.test.mjs",
+    "check:syntax": "node tools/check-syntax.mjs",
+    "package": "ares-package app --outdir dist",
+    "install:tv": "ares-install --device tv dist/com.iptvforall.app_0.1.0_all.ipk",
+    "launch:tv": "ares-launch --device tv com.iptvforall.app"
+  },
+  "devDependencies": {
+    "@webos-tools/cli": "^3.2.0",
+    "acorn": "^8.19.0"
+  }
+}

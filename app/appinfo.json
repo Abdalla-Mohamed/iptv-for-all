@@ -1,0 +1,14 @@
+{
+  "id": "com.iptvforall.app",
+  "version": "0.1.0",
+  "vendor": "IPTV For All contributors",
+  "type": "web",
+  "main": "index.html",
+  "title": "IPTV For All",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "bgColor": "#0b0f17",
+  "resolution": "1920x1080",
+  "disallowScrollingInMainWindow": true,
+  "requiredACG": []
+}
