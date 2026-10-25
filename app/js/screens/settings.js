@@ -14,6 +14,10 @@
         function (v) { Store.setSetting('liveFormat', v); }),
       W.select('HLS playback engine', [{ value: 'auto', label: 'Automatic' }, { value: 'native', label: 'TV native' }, { value: 'hlsjs', label: 'hls.js' }], s.hlsEngine,
         function (v) { Store.setSetting('hlsEngine', v); }),
+      W.select('Smart cache for MP4 movies (memory)', [{ value: 0, label: 'Off (TV decides)' }, { value: 64, label: '64 MB' }, { value: 128, label: '128 MB' }, { value: 256, label: '256 MB' }], s.cacheMb,
+        function (v) { Store.setSetting('cacheMb', v); }),
+      W.select('HLS movie buffer (hls.js engine)', [{ value: 30, label: '30 seconds' }, { value: 120, label: '2 minutes' }, { value: 300, label: '5 minutes' }], s.hlsBufferSec,
+        function (v) { Store.setSetting('hlsBufferSec', v); }),
       W.select('Default picture mode', [{ value: 'contain', label: 'Fit' }, { value: 'cover', label: 'Zoom' }, { value: 'fill', label: 'Stretch' }], s.aspect,
         function (v) { Store.setSetting('aspect', v); }),
       W.input('CORS proxy (advanced, optional)', s.corsProxy, {

@@ -127,14 +127,41 @@ try {
   await press('Enter');
   await page.waitForSelector('.poster');
   await shot('07-movies');
-  await press('ArrowDown'); await press('Enter');
-  await page.waitForFunction(() => { const v = document.getElementById('video'); return v.readyState >= 3 && v.currentTime > 0.3; }, null, { timeout: 15000 });
-  await page.waitForFunction(() => document.getElementById('video').currentTime > 3, null, { timeout: 15000 });
-  await press('ArrowLeft');                                     // seek -10 s -> clamps to the start
-  await page.waitForFunction(() => document.getElementById('video').currentTime < 3, null, { timeout: 5000 });
+  await press('ArrowDown'); await press('Enter');                // Demo Movie 1 is an MP4 -> smart cache
+  await page.waitForFunction(() => { const v = document.getElementById('video'); return v.readyState >= 3 && v.currentTime > 0.8; }, null, { timeout: 15000 });
+  assert.ok(await page.evaluate(() => !!IPTV.Engine.cache && document.getElementById('video').src.startsWith('blob:')), 'MP4 movie plays through the smart cache');
+  const at = () => page.evaluate(() => document.getElementById('video').currentTime);
+  step('MP4 movie plays through the smart cache (MediaSource)');
+
+  // pointer: click anywhere on the progress bar to jump there (Magic Remote)
+  await page.mouse.move(960, 700);
+  await page.waitForSelector('.show-ui .p-barhit');
+  const bar = await page.locator('.p-barhit').boundingBox();
+  await page.mouse.move(bar.x + bar.width * 0.5, bar.y + bar.height / 2);
+  assert.match(await text('.p-tip'), /^1:00$/);
+  await page.mouse.click(bar.x + bar.width * 0.5, bar.y + bar.height / 2);
+  await page.waitForFunction(() => { const t = document.getElementById('video').currentTime; return t > 59 && t < 75; }, null, { timeout: 8000 });
+  assert.ok(await page.evaluate(() => parseFloat(document.querySelector('.p-buf').style.width) > 0), 'cached range is drawn on the bar');
   await shot('08-player-vod');
+  step('clicking the bar at 50% jumps to 1:00 and the cached range is shown');
+
+  // remote: type a time with the number keys (1 3 0 -> 1:30)
+  await press('Digit1'); await press('Digit3'); await press('Digit0');
+  assert.equal(await text('.p-jv'), '00:01:30');
+  await shot('08b-jump-to-time');
+  await press('Enter');
+  await page.waitForFunction(() => { const t = document.getElementById('video').currentTime; return t > 89 && t < 100; }, null, { timeout: 8000 });
+  step('typing 1-3-0 + OK jumps to 1:30');
+
+  await press('ArrowDown');                                     // -1 min
+  await page.waitForFunction(() => { const t = document.getElementById('video').currentTime; return t > 29 && t < 42; }, null, { timeout: 8000 });
+  await press(BLUE); assert.ok(await page.locator('.p-jump.show').count()); await press(BACK);
+  assert.equal(await page.locator('.p-jump.show').count(), 0);
+  assert.equal(await page.locator('.screen.player').count(), 1, 'Back closes the jump box, not the player');
+  step('Down = -1 min; Blue opens the jump box and Back only closes it');
   await press(BACK);
-  step('movies grid plays a direct file and seeks');
+  await page.waitForSelector('.screen.main:not(.hidden)');
+  step('Back leaves the player');
 
   // ---- series ------------------------------------------------------------------------------
   await press('ArrowUp', 5);

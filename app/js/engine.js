@@ -9,6 +9,8 @@
   var Engine = {
     video: null,
     hls: null,
+    cache: null,               // CachePlayer while the smart cache is active
+    cacheRefilling: false,
     url: '',
     live: false,
     startAt: 0,
@@ -20,7 +22,10 @@
     init: function () {
       var v = Engine.video = document.getElementById('video');
       v.addEventListener('playing', function () { Engine.bufferingSince = 0; Engine.retries = 0; Engine.onEvent('playing'); });
-      v.addEventListener('pause', function () { Engine.onEvent('paused'); });
+      v.addEventListener('pause', function () {
+        if (Engine.cache && Engine.cache.autoPaused) return;   // the cache is refilling, not the user pausing
+        Engine.onEvent('paused');
+      });
       v.addEventListener('waiting', function () { Engine.bufferingSince = Engine.bufferingSince || Date.now(); Engine.onEvent('loading'); });
       v.addEventListener('ended', function () { Engine.onEvent('ended'); });
       v.addEventListener('timeupdate', function () { Engine.onEvent('time'); });
@@ -31,6 +36,7 @@
         Engine.onEvent('meta');
       });
       v.addEventListener('error', function () {
+        if (Engine.cache) return;                              // the cache player reacts and falls back itself
         var codes = { 1: 'Playback aborted', 2: 'Network error', 3: 'Media could not be decoded', 4: 'Stream format not supported or unavailable' };
         Engine.fail(codes[v.error && v.error.code] || 'Playback error');
       });
@@ -52,13 +58,22 @@
       var pref = IPTV.Store.settings().hlsEngine;
       var isHls = /\.m3u8(\?|#|$)/i.test(url) || /[?&]output=m3u8/i.test(url);
       var nativeHls = !!v.canPlayType('application/vnd.apple.mpegurl');
+      var cfg = IPTV.Store.settings();
+      if (!isHls && !Engine.live && cfg.cacheMb > 0 && IPTV.CachePlayer && IPTV.CachePlayer.supported(url)) {
+        Engine.startCache(url, cfg.cacheMb);
+        return;
+      }
       var useHlsJs = isHls && root.Hls && root.Hls.isSupported() && (pref === 'hlsjs' || (pref === 'auto' && !nativeHls));
 
       Engine.onEvent('loading');
       if (useHlsJs) {
-        var Hls = root.Hls, hls = Engine.hls = new Hls({
-          maxBufferLength: 30, liveSyncDurationCount: 3, manifestLoadingTimeOut: 15000,
-          startPosition: Engine.live ? -1 : Engine.startAt || -1
+        var Hls = root.Hls, vodSecs = cfg.hlsBufferSec;
+        var hls = Engine.hls = new Hls(Engine.live ? {
+          maxBufferLength: 30, liveSyncDurationCount: 3, manifestLoadingTimeOut: 15000
+        } : {
+          // movies: read far ahead and keep some history so rewinding is instant
+          maxBufferLength: vodSecs, maxMaxBufferLength: Math.max(600, vodSecs), maxBufferSize: 200 * 1000 * 1000,
+          backBufferLength: 60, manifestLoadingTimeOut: 15000, startPosition: Engine.startAt || -1
         });
         hls.on(Hls.Events.ERROR, function (e, data) {
           if (!data.fatal) return;
@@ -73,6 +88,40 @@
       }
       var p = v.play();
       if (p && p.catch) p.catch(function () { /* autoplay blocked or superseded by a newer load() */ });
+    },
+
+    startCache: function (url, mb) {
+      var v = Engine.video;
+      Engine.cache = new IPTV.CachePlayer(v, url, {
+        startAt: Engine.startAt,
+        cacheBytes: mb * 1024 * 1024,
+        onStatus: function (st) {
+          // entering a refill (start or mid-playback underrun) must show the spinner; leaving it fires 'playing'
+          if (st.state === 'buffering' && !Engine.cacheRefilling) Engine.onEvent('loading');
+          Engine.cacheRefilling = st.state === 'buffering';
+          Engine.onEvent('buffer', st);
+        },
+        onFallback: function (reason, time) {
+          if (Engine.url !== url) return;
+          Engine.teardown();
+          Engine.startAt = time;
+          Engine.onEvent('notice', 'Smart cache off for this video (' + reason + ')');
+          v.src = url;
+          var p = v.play();
+          if (p && p.catch) p.catch(function () {});
+        }
+      });
+      Engine.onEvent('loading');
+      Engine.cache.start();
+    },
+
+    /** Cached range around the playhead (works for the smart cache, hls.js and native playback). */
+    bufferInfo: function () {
+      var v = Engine.video, b = v.buffered, t = v.currentTime;
+      for (var i = 0; i < b.length; i++) {
+        if (t >= b.start(i) - 0.15 && t <= b.end(i)) return { start: b.start(i), end: b.end(i), ahead: b.end(i) - t };
+      }
+      return { start: t, end: t, ahead: 0 };
     },
 
     /** Live streams get a few automatic retries; VOD fails immediately. */
@@ -100,6 +149,7 @@
 
     teardown: function () {
       var v = Engine.video;
+      if (Engine.cache) { Engine.cache.destroy(); Engine.cache = null; Engine.cacheRefilling = false; }
       if (Engine.hls) { Engine.hls.destroy(); Engine.hls = null; }
       v.pause();
       v.removeAttribute('src');
@@ -115,6 +165,7 @@
 
     togglePause: function () {
       var v = Engine.video;
+      if (Engine.cache && Engine.cache.autoPaused) { Engine.cache.forcePlay(); return; }   // skip the refill wait
       if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function () {}); } else v.pause();
     },
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// webOS 4 ships Chromium 53 (ES2015, no async/await, no object spread). Fail fast if app code needs more than that.
+// webOS 4 ships Chromium 53 (ES2015, no async/await, no object spread). Fail fast if app code or a vendored
+// library (hls.js, mp4box.js) needs more than that.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +11,7 @@ const files = [];
 (function walk(dir) {
   for (const name of fs.readdirSync(dir)) {
     const f = path.join(dir, name);
-    if (fs.statSync(f).isDirectory()) { if (name !== 'vendor') walk(f); }
+    if (fs.statSync(f).isDirectory()) walk(f);
     else if (f.endsWith('.js')) files.push(f);
   }
 })(appDir);

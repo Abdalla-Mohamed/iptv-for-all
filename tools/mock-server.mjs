@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+let throttleKbps = 0;   // set with GET /__throttle?kbps=N (0 = unlimited); applies to media responses
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const appDir = path.join(root, 'app');
 const mediaDir = path.join(root, 'tools', '.media');
@@ -29,7 +30,8 @@ LIVE_CATS.forEach((c, ci) => {
   for (let i = 1; i <= n; i++) live.push({ num: live.length + 1, name: `${c} Channel ${i}`, stream_id: 1000 + live.length, stream_icon: '', category_id: String(ci + 1), epg_channel_id: `ch${live.length}` });
 });
 const vod = [];
-for (let i = 1; i <= 240; i++) vod.push({ num: i, name: `Demo Movie ${i}`, stream_id: 5000 + i, stream_icon: '', category_id: String((i % 4) + 1), rating: String((i % 9) + 1), container_extension: 'webm' });
+// every 5th movie is "mkv" (played natively); the rest are MP4 (smart-cache path)
+for (let i = 1; i <= 240; i++) vod.push({ num: i, name: `Demo Movie ${i}`, stream_id: 5000 + i, stream_icon: '', category_id: String((i % 4) + 1), rating: String((i % 9) + 1), container_extension: i % 5 === 0 ? 'mkv' : 'mp4' });
 const series = [];
 for (let i = 1; i <= 30; i++) series.push({ num: i, name: `Demo Series ${i}`, series_id: 9000 + i, cover: '', category_id: String((i % 3) + 1), plot: 'A made-up show used to test the series screen. '.repeat(4), rating: '7.5' });
 
@@ -75,20 +77,33 @@ function m3u(host) {
   return lines.join('\n') + '\n';
 }
 
+function sendStream(stream, res) {
+  if (!throttleKbps) { stream.pipe(res); return; }
+  const bytesPerMs = (throttleKbps * 1024) / 1000;
+  stream.on('data', (chunk) => { stream.pause(); res.write(chunk); setTimeout(() => stream.resume(), chunk.length / bytesPerMs); });
+  stream.on('end', () => res.end());
+  res.on('close', () => stream.destroy());
+}
+
 function serveFile(req, res, file) {
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) { res.writeHead(404); return res.end('not found'); }
-    const type = TYPES[path.extname(file)] || 'application/octet-stream';
-    const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
+    const ext = path.extname(file);
+    const type = TYPES[ext] || 'application/octet-stream';
     const head = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'no-store' };
+    const media = ext === '.webm' || ext === '.mp4';
+    const range = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
+    let start = 0, end = st.size - 1;
     if (range) {
-      const start = range[1] ? Number(range[1]) : 0, end = range[2] ? Number(range[2]) : st.size - 1;
+      if (range[1]) { start = Number(range[1]); if (range[2]) end = Math.min(Number(range[2]), end); }
+      else if (range[2]) start = Math.max(0, st.size - Number(range[2]));   // suffix range
+      if (start >= st.size) { res.writeHead(416, { 'Content-Range': `bytes */${st.size}` }); return res.end(); }
       res.writeHead(206, { ...head, 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 });
-      fs.createReadStream(file, { start, end }).pipe(res);
     } else {
       res.writeHead(200, { ...head, 'Content-Length': st.size });
-      fs.createReadStream(file).pipe(res);
     }
+    const stream = fs.createReadStream(file, { start, end, highWaterMark: 16 * 1024 });
+    if (media) sendStream(stream, res); else stream.pipe(res);
   });
 }
 
@@ -99,8 +114,14 @@ http.createServer((req, res) => {
   const p = decodeURIComponent(url.pathname);
   if (p === '/player_api.php') return api(url.searchParams, res);
   if (p === '/playlist.m3u') { res.writeHead(200, { 'Content-Type': 'audio/x-mpegurl', 'Access-Control-Allow-Origin': '*' }); return res.end(m3u(req.headers.host)); }
-  // any Xtream stream URL maps to the generated test media
-  if (/^\/(movie|series)\//.test(p) || p.startsWith('/stream/')) return serveFile(req, res, path.join(mediaDir, 'test.webm'));
+  if (p === '/__throttle') { throttleKbps = Number(url.searchParams.get('kbps')) || 0; res.writeHead(200); return res.end(String(throttleKbps)); }
+  // any Xtream stream URL maps to the generated test media (MP4 ids divisible by 7 get the moov-at-end file)
+  if (/^\/(movie|series)\//.test(p) || p.startsWith('/stream/')) {
+    const id = Number((/(\d+)\.\w+$/.exec(p) || [])[1]) || 0;
+    // ids divisible by 11 are a WebM served under a .mp4 URL (a provider that lies about the container)
+    const file = p.endsWith('.mp4') && id % 11 !== 0 ? (id % 7 === 0 ? 'movie-tail.mp4' : 'movie.mp4') : 'test.webm';
+    return serveFile(req, res, path.join(mediaDir, file));
+  }
   if (/^\/live\/[^/]+\/[^/]+\/\d+\.m3u8$/.test(p)) return serveFile(req, res, path.join(mediaDir, 'hls', 'index.m3u8'));
   if (/^\/live\/[^/]+\/[^/]+\/[\w.-]+\.(m4s|mp4)$/.test(p)) return serveFile(req, res, path.join(mediaDir, 'hls', path.basename(p)));
   if (p.startsWith('/live/')) return serveFile(req, res, path.join(mediaDir, 'test.webm'));

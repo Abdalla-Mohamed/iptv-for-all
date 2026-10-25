@@ -12,26 +12,58 @@ You bring your own playlist or provider login; the app ships with **no channels 
 - **Xtream Codes** logins (verified on save) and **M3U / M3U8** URLs, multiple playlists
 - **Live TV, Movies, Series** (seasons and episodes), categories, search, **favorites**, recently watched
 - **EPG** now/next for Xtream live channels (list panel and player overlay)
-- Player: CH+/CH- zapping, number-key channel entry, channel drawer (OK), seek with accelerating steps,
-  **resume where you left off**, auto-play next episode, aspect cycling, audio-track switching, auto-retry on dropped live streams
-- HLS through the TV's native player, with **hls.js** as an alternative (Settings) and for desktop testing
-- Built for the Magic Remote and the D-pad: colour keys, media keys, pointer clicks all work
-- Handles huge playlists (tens of thousands of channels) by only keeping the visible rows in the DOM
-- No build step, no runtime dependencies besides the vendored hls.js (Apache-2.0)
+- **Smart cache for movies and episodes** (MP4): reads ahead in small range requests, keeps a rolling cache in memory,
+  waits for a head start before playing and refills after an underrun instead of stuttering. See [Smart cache](#smart-cache)
+- **Seek anywhere**: click or drag on the progress bar with the Magic Remote (hover shows the time), type a time with the
+  number keys (`1 3 0` = 1:30), or jump by 10 s / 1 min / 10 min. The bar shows what is already cached
+- Resume where you left off, auto-play next episode, aspect cycling, audio-track switching, auto-retry on dropped live streams
+- Live: CH+/CH- zapping, number-key channel entry, channel drawer (OK)
+- HLS through the TV's native player, or **hls.js** (Settings) with a configurable read-ahead for movies
+- Magic Remote and D-pad friendly: colour keys, media keys, pointer clicks
+- Handles huge playlists (tens of thousands of channels): only the visible rows exist in the DOM
+- No build step; vendored libraries: hls.js (Apache-2.0) and mp4box.js (BSD-3-Clause)
 
 ### Remote control
 
-| Key | Browse | Player |
-|---|---|---|
-| OK | play / select | live: channel drawer, VOD: pause |
-| Up / Down, CH+ / CH- | move | next / previous channel |
-| Left / Right | change column | VOD: seek (10 s, accelerates up to 5 min) |
-| 0-9 | | jump to channel number |
-| Red | add / remove favorite | add / remove favorite |
-| Green | playlists | switch audio track |
-| Yellow | settings | cycle aspect (Fit / Zoom / Stretch) |
-| Blue | reload playlist | show info |
-| Back | up one screen (exits from the playlist list) | stop |
+| Key | Browse | Live player | Movie / episode player |
+|---|---|---|---|
+| OK | play / select | channel drawer | pause / play (while caching: start now) |
+| Up / Down | move | next / previous channel | **+1 min / -1 min** (episodes: next / previous episode) |
+| CH+ / CH- | page | next / previous channel | **+10 min / -10 min** (episodes: next / previous episode) |
+| Left / Right | change column | | -10 s / +10 s (grows to 5 min if you keep tapping) |
+| 0-9 | | jump to channel number | **type a time to jump to**, e.g. `1 3 0` then OK = 1:30 |
+| Red | add / remove favorite | favorite | favorite |
+| Green | playlists | audio track | audio track |
+| Yellow | settings | aspect (Fit / Zoom / Stretch) | aspect |
+| Blue | reload playlist | info | **Go to time** box |
+| Back | up one screen (exits from the playlist list) | stop | stop (closes the Go-to-time box first) |
+| Magic Remote pointer | click to select | click = channel drawer | **click / drag the bar to jump**, click the picture = pause |
+
+## Smart cache
+
+Many TV media pipelines buffer only a few seconds of a progressive file, so on a slow or unsteady connection a movie
+stutters and "loading" appears again and again. For **MP4 movies/episodes** (`.mp4`, `.m4v`, `.mov`) the app plays through
+Media Source Extensions with its own cache instead of leaving it to the TV:
+
+- fetches the file in adaptive **HTTP range requests** (small on slow links) and remuxes them on the fly with mp4box.js
+- keeps a rolling window in memory: read-ahead (to the budget you pick: 64 / 128 / 256 MB) plus a back buffer so rewinding is instant
+- **waits for an 8 s head start**, and if the link falls behind the video it **pauses once and refills** (to ~12-30 s) instead of
+  stuttering, with a "Caching 12 / 20 s · 450 KB/s" message. Pressing OK skips the wait
+- pausing a movie keeps filling the cache, so you can pause for a few minutes on a slow link and then watch uninterrupted
+- a seek outside the cache jumps straight to the right byte offset (no downloading from the start); moov-at-the-end files work
+- anything unexpected (codec not playable through MSE, no range support, network errors, nothing playing after 20 s)
+  silently falls back to normal playback at the current position, with a toast saying why
+
+Limits you should know about:
+
+- **MKV, AVI, TS and other containers use the TV's own player** (no cache control). Many Xtream providers serve movies as `.mkv`;
+  the app cannot remux Matroska in JavaScript on TV hardware. If your provider offers `.mp4` for a title, that one gets the cache.
+- It cannot make a connection faster than the video bitrate: below that rate you will wait, but once, up front or after an
+  underrun, instead of constantly.
+- The cache lives in memory only (nothing is written to disk) and is dropped when you leave the movie.
+- It first reads the file with plain range requests from the TV; some providers throttle or ban range-heavy clients.
+  Turn the cache off in **Settings > Smart cache** if a provider misbehaves.
+- HLS movies use hls.js buffering instead (**Settings > HLS movie buffer**), which only applies when the hls.js engine is in use.
 
 ## Install on your TV
 
@@ -54,25 +86,27 @@ CI builds the `.ipk` on every push (see the **ipk** artifact of the workflow run
 ## Adding a playlist
 
 Typing on a TV is slow, so the form takes the minimum: for **M3U**, a URL; for **Xtream**, server URL, username, password.
-Tip: type long URLs once using the Magic Remote's on-screen keyboard, or use a short link from a URL shortener.
 
 If the TV cannot reach your provider's API because of CORS rules, set a **CORS proxy** prefix in Settings
-(the real URL is appended URL-encoded). Streams themselves are played by the TV's media pipeline and do not need CORS.
+(the real URL is appended URL-encoded). Streams played by the TV's own pipeline do not need CORS. The smart cache and hls.js
+read streams with XHR, so a server that blocks cross-origin requests makes them fall back to native playback.
 
 ## Develop on a desktop
 
 ```sh
 npm install
-npm run mock:media     # one-time, needs ffmpeg: generates a test pattern (no real content)
+npm run mock:media     # one-time, needs ffmpeg: generates test patterns (no real content)
 npm run dev            # http://localhost:8080  (Xtream demo/demo at http://localhost:8080, M3U at /playlist.m3u)
 ```
 
 Open it in a browser. The 1920x1080 stage scales to the window; arrow keys = D-pad, Enter = OK, Esc = Back, F1-F4 = Red/Green/Yellow/Blue, PageUp/PageDown = CH+/CH-.
+The mock server can throttle media to simulate a slow connection: `curl 'http://localhost:8080/__throttle?kbps=80'` (`0` = off).
 
 ```sh
-npm test               # unit tests: M3U parser, Xtream client
-npm run check:syntax   # app code must stay ES2015 (webOS 4 ships Chromium 53)
-node tests/e2e/smoke.mjs   # drives the whole UI with key presses against the mock server (needs playwright + Chromium)
+npm test                    # unit tests: M3U parser, Xtream client, cache policy, time entry
+npm run check:syntax        # app code and vendored libs must stay ES2015 (webOS 4 ships Chromium 53)
+npm run test:e2e            # keyboard/pointer-driven UI run + cache scenarios (needs playwright + Chromium and mock:media)
+SLOW=1 node tests/e2e/cache.mjs   # additionally proves the pause-and-refill behaviour on a link slower than the video (~2 min)
 ```
 
 ### Layout
@@ -82,22 +116,43 @@ app/                 the webOS app (this folder is what ares-package ships)
   appinfo.json
   js/m3u.js          M3U parser (also runs in Node for tests)
   js/xtream.js       Xtream Codes API client (also runs in Node)
-  js/engine.js       <video> + hls.js wrapper, retries, stall watchdog
+  js/cache-player.js smart cache: MP4 over MediaSource, read-ahead, eviction, refill policy (policy is unit-tested)
+  js/timeentry.js    "type a time" entry
+  js/engine.js       <video> + hls.js + smart cache wrapper, retries, stall watchdog
   js/widgets.js      VirtualGrid (windowed list/grid), ListZone (buttons/inputs/selects)
   js/screens/*.js    playlists, form, settings, main browser, series, player
-tools/mock-server.mjs   fake Xtream + M3U provider and static server for development
+tools/mock-server.mjs   fake Xtream + M3U provider, range-capable media server with throttling
 tests/                  unit + e2e
 ```
 
-## Status and limitations
+## Status
 
-- Developed and tested in desktop Chromium against the mock server (unit tests, a full keyboard-driven end-to-end run, and a successful `ares-package`).
-  **It has not been run on a physical LG TV yet**: expect to find webOS-specific rough edges. Issues and PRs are welcome.
-- Not implemented yet: XMLTV EPG for plain M3U playlists, subtitles, catch-up/timeshift, parental lock, casting, entering playlists from a phone.
-- Plain-M3U movies/series are detected only from Xtream-style URLs (`/movie/`, `/series/`) or video file extensions; everything else is Live.
-- Browsers cannot send custom HTTP headers for media; `|User-Agent=...` suffixes in M3U URLs are ignored.
-- You are responsible for only using playlists and services you are entitled to.
+- Developed and tested in desktop Chromium against the mock server: unit tests, a keyboard/pointer-driven end-to-end run,
+  cache scenarios (eviction, far seeks, seeks after EOF, moov-at-the-end files, slow links, a real underrun) and a successful `ares-package`.
+- **It has not been run on a physical LG TV yet.** In particular the smart cache depends on the TV's MSE implementation
+  (codec support, memory limits) and on your provider's range-request support. It falls back to native playback on errors,
+  but a silent misbehaviour on some model is possible: if so, switch **Settings > Smart cache** to *Off* and please report the model and webOS version.
+
+## Not implemented yet
+
+XMLTV EPG for plain M3U playlists and a channel guide grid, subtitles, catch-up/timeshift, parental lock/PIN, movie detail pages
+(plot, cast, trailer), a "continue watching" row, persistent playlist cache (the playlist is re-downloaded on every launch),
+entering playlists from a phone, MKV caching, multi-view/PiP, Stalker portals, UI translations/RTL.
+
+Plain-M3U movies/series are detected only from Xtream-style URLs (`/movie/`, `/series/`) or video file extensions; everything else is Live.
+Browsers cannot send custom HTTP headers for media, so `|User-Agent=...` suffixes in M3U URLs are ignored.
+You are responsible for only using playlists and services you are entitled to.
+
+## Related open-source projects
+
+None of the projects below is packaged for webOS as far as I could find, which is why this one exists:
+[IPTVnator](https://github.com/4gray/iptvnator) (MIT; Angular, M3U/Xtream/Stalker, XMLTV EPG, hls.js/Video.js; desktop, PWA and Docker),
+[Open TV](https://www.justgeek.fr/open-tv-application-iptv-open-source-138264/) (M3U/Xtream; desktop and mobile),
+[Another IPTV Player](https://www.linuxlinks.com/another-iptv-player/) (Flutter; M3U/Xtream),
+[Ultra TV](https://awesome.ecosyste.ms/projects/github.com%2Fkhalilbenaz%2Fultra-tv) (MIT; web, desktop and Android TV).
+Libraries used: [hls.js](https://github.com/video-dev/hls.js), [mp4box.js](https://github.com/gpac/mp4box.js).
 
 ## License
 
-Apache-2.0, see [LICENSE](LICENSE). `app/js/vendor/hls.min.js` is [hls.js](https://github.com/video-dev/hls.js) (Apache-2.0, license in `app/js/vendor/hls.js.LICENSE`).
+Apache-2.0, see [LICENSE](LICENSE). Vendored: `app/js/vendor/hls.min.js` ([hls.js](https://github.com/video-dev/hls.js), Apache-2.0,
+`hls.js.LICENSE`) and `app/js/vendor/mp4box.all.min.js` ([mp4box.js](https://github.com/gpac/mp4box.js), BSD-3-Clause, `mp4box.js.LICENSE`).

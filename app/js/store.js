@@ -10,7 +10,9 @@
     liveFormat: 'm3u8',  // Xtream live container: m3u8 | ts
     hlsEngine: 'auto',   // auto | native | hlsjs
     aspect: 'contain',   // contain | cover | fill
-    corsProxy: ''        // optional prefix; the real URL is appended URL-encoded
+    corsProxy: '',       // optional prefix; the real URL is appended URL-encoded
+    cacheMb: 128,        // smart cache for MP4 movies/episodes: 0 = off, else memory budget in MB
+    hlsBufferSec: 120    // hls.js read-ahead for HLS movies
   };
 
   function read(key, def) {
