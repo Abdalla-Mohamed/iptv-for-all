@@ -297,7 +297,50 @@
     });
   }
 
+  // ------------------------------------------------------------------------
+  // pinPad(): modal 4-digit entry (number keys, or click the digits with the Magic Remote).
+  // Resolves the digits, or null if cancelled. `note` is a line under the title (e.g. "Wrong PIN, 2 tries left").
+  // ------------------------------------------------------------------------
+  function pinPad(title, note) {
+    return new Promise(function (resolve) {
+      var digits = '';
+      var dots = [0, 1, 2, 3].map(function () { return h('span', { className: 'pin-dot' }); });
+      function paint() { dots.forEach(function (d, i) { d.classList.toggle('on', i < digits.length); }); }
+      function done(v) {
+        IPTV.Router.modal = null;
+        box.parentNode.removeChild(box);
+        resolve(v);
+      }
+      function push(n) {
+        if (digits.length >= 4) return;
+        digits += n;
+        paint();
+        if (digits.length === 4) setTimeout(function () { done(digits); }, 150);
+      }
+      var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '\u232B', '0', '\u2715'].map(function (k) {
+        return h('div', { className: 'pin-key', text: k, onclick: function () {
+          if (k === '\u232B') { digits = digits.slice(0, -1); paint(); } else if (k === '\u2715') done(null); else push(k);
+        } });
+      });
+      var box = h('div', { className: 'modal' }, h('div', { className: 'dialog pin' }, [
+        h('h2', { text: title }),
+        h('p', { className: note ? 'pin-note bad' : 'pin-note', text: note || 'Type the 4 digits with the number keys' }),
+        h('div', { className: 'pin-dots' }, dots),
+        h('div', { className: 'pin-pad' }, keys),
+        h('div', { className: 'pin-help', text: '\u25C0 delete     BACK cancel' })
+      ]));
+      document.getElementById('app').appendChild(box);
+      IPTV.Router.modal = {
+        onKey: function (a) {
+          if (/^num\d$/.test(a)) push(a.charAt(3));
+          else if (a === 'left' || a === 'rw') { digits = digits.slice(0, -1); paint(); }
+          else if (a === 'back') done(null);
+        }
+      };
+    });
+  }
+
   IPTV.VirtualGrid = VirtualGrid;
   IPTV.ListZone = ListZone;
-  IPTV.W = { button: button, input: input, select: select, confirm: confirmDialog };
+  IPTV.W = { button: button, input: input, select: select, confirm: confirmDialog, pinPad: pinPad };
 })(window);

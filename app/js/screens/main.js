@@ -13,6 +13,7 @@
 
   IPTV.Screens.Main = function () {
     var pl, provider;
+    var parental = IPTV.parental;
     var kinds = [], kind = 'live', section = null, catId = '*', query = '';
     var filtered = [];
     var zoneName = 'content';      // header | cats | content
@@ -33,11 +34,12 @@
       cols: 1, rowH: 64, className: 'cats',
       render: function (c) {
         return h('div', { className: 'cat-row' + (c.id === catId && !query ? ' cur' : '') }, [
+          c.locked ? h('span', { className: 'lock' }) : null,
           h('span', { className: 'cat-name', text: c.name }),
           h('span', { className: 'cat-count', text: c.count })
         ]);
       },
-      onSelect: function (c) { selectCat(c.id); },
+      onSelect: function (c) { openCat(c); },
       onPointer: function () { focusZone('cats'); }
     });
 
@@ -68,10 +70,18 @@
       info
     ]);
 
+    var CONTENT_HINTS = ['OK Play', 'Red Favorite', 'Green Playlists', 'Yellow Settings', 'Blue Reload'];
+    var CATS_HINTS = ['OK Open', 'Red Lock / unlock category', 'Green Playlists', 'Yellow Settings', 'Blue Reload'];
+    var hintBar = IPTV.hints(CONTENT_HINTS);
+    function setHints(parts) {
+      IPTV.clear(hintBar);
+      parts.forEach(function (t) { hintBar.appendChild(h('span', { text: t })); });
+    }
+
     var el = h('div', { className: 'screen main kind-live' }, [
       h('div', { className: 'topbar' }, [h('div', { className: 'brand', text: 'IPTV For All' }), plName, tabsWrap, search.el, clock]),
       body,
-      IPTV.hints(['OK Play', 'Red Favorite', 'Green Playlists', 'Yellow Settings', 'Blue Reload'])
+      hintBar
     ]);
 
     // ---- item rendering ------------------------------------------------------
@@ -128,10 +138,23 @@
       header.setIndex(kinds.indexOf(kind));
     }
 
+    /** Everything that decides what is hidden: lets onResume notice a change made in Settings or by an expiring unlock. */
+    var lastLockSig = '';
+    function lockSignature() {
+      return [parental.hasPin(), parental.adultLock(), parental.isUnlocked(), Object.keys(lockedMap()).join('|')].join(';');
+    }
+
+    function lockedMap() { return section ? parental.lockedIds(pl.id, kind, section.cats) : {}; }
+    function visible(list) { return parental.visible(list, lockedMap()); }
+
     function specialCats() {
-      var favs = Store.favs(pl.id), nf = 0;
-      for (var i = 0; i < section.items.length; i++) if (favs[section.items[i].key]) nf++;
-      var list = [{ id: '*', name: 'All', count: section.items.length }, { id: '__fav', name: '★ Favorites', count: nf }];
+      var favs = Store.favs(pl.id), nf = 0, hidden = 0, locked = lockedMap(), hide = !parental.isUnlocked();
+      for (var i = 0; i < section.items.length; i++) {
+        var it = section.items[i];
+        if (hide && locked[it.cat]) { hidden++; continue; }
+        if (favs[it.key]) nf++;
+      }
+      var list = [{ id: '*', name: 'All', count: section.items.length - hidden }, { id: '__fav', name: '★ Favorites', count: nf }];
       if (kind !== 'series') list.push({ id: '__recent', name: 'Recently watched', count: recentItems().length });
       var cont = continueItems().length;
       if (cont) list.unshift({ id: '__continue', name: '\u25B6 Continue watching', count: cont });
@@ -148,12 +171,12 @@
 
     function recentItems() {
       var map = keyMap();
-      return Store.recents(pl.id, kind === 'live' ? 'live' : 'vod').map(function (k) { return map[k]; }).filter(Boolean);
+      return visible(Store.recents(pl.id, kind === 'live' ? 'live' : 'vod').map(function (k) { return map[k]; }).filter(Boolean));
     }
 
     /** Unfinished movies (Movies tab) / latest unfinished episode per series (Series tab). */
     function continueItems() {
-      return kind === 'live' ? [] : IPTV.Continue.items(Store.progressEntries(pl.id), kind, keyMap());
+      return kind === 'live' ? [] : visible(IPTV.Continue.items(Store.progressEntries(pl.id), kind, keyMap()));
     }
 
     function selectKind(k) {
@@ -171,6 +194,7 @@
         if (asked !== kind) return;
         section = sec;
         showAge();
+        lastLockSig = lockSignature();
         content.setMessage('');
         if (continueItems().length) catId = '__continue';     // most common thing to want on the Movies / Series tabs
         refreshCats(0);
@@ -183,8 +207,42 @@
     }
 
     function refreshCats(idx) {
+      section.cats.forEach(function (c) { c.locked = parental.isLocked(pl.id, kind, c); });
       var list = specialCats().concat(section.cats);
       cats.setItems(list, idx != null ? idx : cats.index, idx == null);
+    }
+
+    /** Enter on a category: a locked one asks for the PIN first (unlocks everything for 30 minutes). */
+    function openCat(c) {
+      if (c.locked && !parental.isUnlocked()) {
+        IPTV.PinFlow.verify('PIN for "' + c.name + '"').then(function (ok) {
+          if (!ok) return;
+          parental.unlock();
+          refreshCats();
+          selectCat(c.id);
+        });
+        return;
+      }
+      selectCat(c.id);
+    }
+
+    /** Red on a category: lock it (needs a PIN to exist: the first time you choose one) or unlock it again (asks the PIN). */
+    function toggleCatLock() {
+      var c = cats.current();
+      if (!c || c.id.indexOf('__') === 0 || c.id === '*') { IPTV.toast('Pick a category from the list to lock it'); return; }
+      function lockToggle() {
+        var on = parental.toggleLock(pl.id, kind, c.id);
+        IPTV.toast(on ? '"' + c.name + '" is locked' : '"' + c.name + '" is unlocked');
+        refreshCats();
+        applyFilter(0);
+      }
+      if (!parental.hasPin()) {
+        IPTV.PinFlow.create('Choose a PIN to lock categories').then(function (ok) { if (ok) lockToggle(); });
+      } else if (parental.lockedByName(c)) {
+        IPTV.toast('Adult categories are locked automatically (Settings > Parental control)');
+      } else if (parental.manuallyLocked(pl.id, kind, c.id)) {
+        IPTV.PinFlow.verify('PIN to unlock "' + c.name + '"').then(function (ok) { if (ok) lockToggle(); });
+      } else lockToggle();
     }
 
     function selectCat(id) {
@@ -207,6 +265,7 @@
       } else if (catId === '__recent') list = recentItems();
       else if (catId === '__continue') list = continueItems();
       else list = section.byCat[catId] || [];
+      list = visible(list);
       filtered = list;
       if (keepKey) {            // a background refresh swapped the data: stay on the same item
         for (var k = 0; k < list.length; k++) if (list[k].key === keepKey) { index = k; break; }
@@ -214,7 +273,8 @@
       var catName = 'All';
       cats.items.forEach(function (c) { if (c.id === catId) catName = c.name; });
       count.textContent = (q ? 'Search "' + query + '"' : catName) + '  ·  ' + plural(list.length, kind);
-      content.setMessage(list.length ? '' : (q ? 'No matches' : catId === '__fav' ? 'No favorites yet. Press RED on an item to add it.' : 'Nothing here'));
+      content.setMessage(list.length ? '' : (q ? 'No matches' : catId === '__fav' ? 'No favorites yet. Press RED on an item to add it.' :
+        lockedMap()[catId] ? 'This category is locked. Press OK on it in the list to enter the PIN.' : 'Nothing here'));
       content.setItems(list, index || 0);
       if (!list.length) showInfo(null);
     }
@@ -298,6 +358,7 @@
       if (name !== 'header') lastBodyZone = name;
       for (var k in zoneMap) zoneMap[k].setActive(k === name);
       el.classList.toggle('on-header', name === 'header');
+      if (name === 'cats') setHints(CATS_HINTS); else if (name === 'content') setHints(CONTENT_HINTS);
     }
 
     function onKey(a) {
@@ -314,6 +375,8 @@
         else { content.refresh(); refreshCats(); }
         return true;
       }
+
+      if (a === 'red' && zoneName === 'cats') { toggleCatLock(); return true; }
 
       var z = zoneMap[zoneName];
       if (z.handleKey(a)) return true;
@@ -375,11 +438,13 @@
         // favorites / recents may have changed in the player
         if (section) {
           refreshCats();
-          if (!query && (catId === '__fav' || catId === '__recent' || catId === '__continue')) applyFilter(content.index);
+          var sig = lockSignature(), cur = content.current();
+          if (sig !== lastLockSig) { lastLockSig = sig; applyFilter(content.index, cur && cur.key); }       // PIN set/removed, lock expired ...
+          else if (!query && (catId === '__fav' || catId === '__recent' || catId === '__continue')) applyFilter(content.index);
           else content.refresh();
         }
       },
-      onClose: function () { clearInterval(clockTimer); },
+      onClose: function () { clearInterval(clockTimer); parental.lock(); },
       onKey: onKey
     };
   };

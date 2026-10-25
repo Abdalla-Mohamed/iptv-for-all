@@ -110,7 +110,7 @@ body.playing #video { visibility: visible; }
 .count { height: 60px; line-height: 60px; padding-left: 8px; color: var(--dim); font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .col-content .vgrid { height: calc(100% - 60px); }
 .cat-row { display: flex; align-items: center; justify-content: space-between; padding: 0 22px; font-size: 26px; }
-.cat-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cat-count { margin-left: 14px; font-size: 20px; color: var(--dim); }
 .cat-row.cur .cat-name { color: var(--accent2); font-weight: 700; }
 .vgrid.active .vcell.sel .cat-count, .vgrid.active .vcell.sel .cat-name { color: #fff; }
@@ -248,3 +248,19 @@ body.playing #video { visibility: visible; }
 .p-tracks .btn { height: 68px; line-height: 64px; text-align: left; padding: 0 26px; margin-bottom: 8px; font-size: 28px; }
 .p-tracks .btn.on { border-color: var(--accent2); }
 .p-tracks .field { height: 86px; }
+
+/* ---- parental lock ---- */
+.lock { position: relative; display: inline-block; flex: none; width: 18px; height: 14px; margin: 6px 14px 0 0; border-radius: 3px; background: currentColor; opacity: .85; }
+.lock::before { content: ""; position: absolute; left: 3px; top: -9px; width: 8px; height: 9px; border: 3px solid currentColor; border-bottom: 0; border-radius: 8px 8px 0 0; }
+.cat-row .lock { color: var(--star); }
+.vgrid.active .vcell.sel .cat-row .lock { color: #fff; }
+.dialog.pin { width: 640px; text-align: center; }
+.pin-note { margin-bottom: 26px; }
+.pin-note.bad { color: #fca5a5; }
+.pin-dots { display: flex; justify-content: center; margin-bottom: 30px; }
+.pin-dot { width: 34px; height: 34px; margin: 0 14px; border-radius: 50%; border: 3px solid var(--dim); }
+.pin-dot.on { background: #fff; border-color: #fff; }
+.pin-pad { display: flex; flex-wrap: wrap; width: 480px; margin: 0 auto; }
+.pin-key { width: 150px; height: 76px; line-height: 72px; margin: 5px; border-radius: 14px; border: 2px solid var(--line); background: var(--panel2); font-size: 34px; cursor: pointer; }
+.pin-key:hover { border-color: var(--accent2); }
+.pin-help { margin-top: 24px; font-size: 22px; color: var(--dim); }

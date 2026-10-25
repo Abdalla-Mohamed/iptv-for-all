@@ -26,6 +26,9 @@ You bring your own playlist or provider login; the app ships with **no channels 
 - **Movie detail page** (Xtream): plot, cast, director, genre, year, rating, with Play / Resume from m:ss / Start over / Add to favorites
 - **Audio & subtitles picker** (Green, or the remote's SUBTITLE key): switch audio language and subtitles, change subtitle size.
   Preferred audio / subtitle languages in Settings are applied automatically (e.g. Arabic audio, English subtitles)
+- **Parental lock**: a 4-digit PIN; lock categories with Red in the category list (or let categories named XXX / Adult / 18+
+  lock themselves). Locked content disappears from every list, search and count until you enter the PIN (unlocks for 30 minutes
+  or until you leave the playlist). It keeps children out of the way; it is not a security feature
 - Resume where you left off, auto-play next episode, aspect cycling, auto-retry on dropped live streams
 - Live: CH+/CH- zapping, number-key channel entry, channel drawer (OK)
 - HLS through the TV's native player, or **hls.js** (Settings) with a configurable read-ahead for movies
@@ -42,7 +45,7 @@ You bring your own playlist or provider login; the app ships with **no channels 
 | CH+ / CH- | page | next / previous channel | **+10 min / -10 min** (episodes: next / previous episode) |
 | Left / Right | change column | | -10 s / +10 s (grows to 5 min if you keep tapping) |
 | 0-9 | | jump to channel number | **type a time to jump to**, e.g. `1 3 0` then OK = 1:30 |
-| Red | add / remove favorite | favorite | favorite |
+| Red | add / remove favorite (in the category list: lock / unlock the category) | favorite | favorite |
 | Green | playlists | audio & subtitles | audio & subtitles |
 | Yellow | settings | aspect (Fit / Zoom / Stretch) | aspect |
 | Blue | reload playlist | info | **Go to time** box |
@@ -134,6 +137,7 @@ app/                 the webOS app (this folder is what ares-package ships)
   js/cache-player.js smart cache: MP4 over MediaSource, read-ahead, eviction, refill policy (policy is unit-tested)
   js/library-cache.js saved playlists (IndexedDB) + refresh policy
   js/continue.js     "Continue watching" list building (unit-tested)
+  js/parental.js     PIN, locked categories, timed unlock (unit-tested); parental-ui.js = PIN dialogs
   js/langs.js        language codes/names for audio + subtitle preferences (unit-tested)
   js/timeentry.js    "type a time" entry
   js/engine.js       <video> + hls.js + smart cache wrapper, retries, stall watchdog
@@ -153,7 +157,7 @@ tests/                  unit + e2e
 
 ## Not implemented yet
 
-a full-screen channel guide grid (timeline), XMLTV for Xtream accounts, external subtitle files, catch-up/timeshift, parental lock/PIN, trailers, entering playlists from a phone, MKV caching, multi-view/PiP, Stalker portals, UI translations/RTL.
+a full-screen channel guide grid (timeline), XMLTV for Xtream accounts, external subtitle files, catch-up/timeshift, trailers, entering playlists from a phone, MKV caching, multi-view/PiP, Stalker portals, UI translations/RTL.
 
 Plain-M3U movies/series are detected only from Xtream-style URLs (`/movie/`, `/series/`) or video file extensions; everything else is Live.
 Browsers cannot send custom HTTP headers for media, so `|User-Agent=...` suffixes in M3U URLs are ignored.

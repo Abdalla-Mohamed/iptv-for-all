@@ -32,6 +32,19 @@
         placeholder: 'https://my-proxy.example/?url=',
         onChange: function (v) { Store.setSetting('corsProxy', v.trim()); }
       }),
+      W.button('Parental PIN: set or change', function () {
+        var P = IPTV.parental;
+        (P.hasPin() ? IPTV.PinFlow.verify('Current PIN') : Promise.resolve(true)).then(function (ok) {
+          if (ok) IPTV.PinFlow.create(P.hasPin() ? 'Choose a new PIN' : 'Choose a 4-digit PIN');
+        });
+      }),
+      W.button('Parental PIN: remove (unlocks everything)', function () {
+        var P = IPTV.parental;
+        if (!P.hasPin()) { IPTV.toast('No PIN is set'); return; }
+        IPTV.PinFlow.verify('Current PIN').then(function (ok) { if (ok) { P.clearPin(); IPTV.toast('PIN removed, all categories unlocked'); } });
+      }, 'danger'),
+      W.select('Lock adult categories automatically (needs a PIN)', [{ value: true, label: 'On' }, { value: false, label: 'Off' }], IPTV.parental.adultLock(),
+        function (v) { IPTV.parental.setAdultLock(v); }),
       W.button('Clear all data (playlists, favorites, history)', function () {
         W.confirm('Clear all data?', 'This removes every playlist, favorite and resume point.', 'Clear').then(function (yes) {
           if (!yes) return;

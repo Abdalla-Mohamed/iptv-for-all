@@ -90,6 +90,7 @@ function m3u(host) {
   const lines = [`#EXTM3U x-tvg-url="http://${host}/epg.xml.gz"`];
   // channel 50 has no tvg-id: the guide is matched through its display name
   for (let i = 1; i <= 50; i++) lines.push(`#EXTINF:-1 ${i === 50 ? '' : `tvg-id="m${i}" `}tvg-logo="" group-title="${i % 2 ? 'Odd, Group' : 'Even'}",M3U Channel ${i}`, `http://${host}/stream/test.webm?c=${i}`);
+  lines.push('#EXTINF:-1 group-title="Adult XXX",Adult One', `http://${host}/stream/test.webm?c=901`, '#EXTINF:-1 group-title="Adult XXX",Adult Two', `http://${host}/stream/test.webm?c=902`);
   lines.push('#EXTINF:-1 group-title="Films",A Movie', `http://${host}/movie/demo/demo/1.webm`);
   return lines.join('\n') + '\n';
 }

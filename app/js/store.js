@@ -33,6 +33,9 @@
   }
 
   var Store = {
+    get: read,
+    set: write,
+
     // ---- playlists -------------------------------------------------------
     playlists: function () { return read('playlists', []); },
     getPlaylist: function (id) {
