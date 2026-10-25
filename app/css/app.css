@@ -216,3 +216,19 @@ body.playing #video { visibility: visible; }
 .p-jn { font-size: 26px; color: #cbd5e1; }
 .p-jn.warn { color: #fbbf24; }
 .p-jh { margin-top: 22px; font-size: 20px; color: var(--dim); }
+
+/* ---- movie detail ---- */
+.movie .m-bg { display: none; position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; opacity: .28; }
+.m-shade { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: linear-gradient(90deg, rgba(11, 15, 23, .96) 30%, rgba(11, 15, 23, .7)); }
+.m-layout { position: absolute; left: 0; top: 0; right: 0; bottom: 64px; display: flex; padding: 90px 120px 0; }
+.m-left { width: 440px; margin-right: 80px; }
+.m-cover { display: block; width: 400px; height: 600px; object-fit: cover; border-radius: 14px; background: #151e2f; box-shadow: 0 10px 40px rgba(0, 0, 0, .6); }
+.m-right { flex: 1; min-width: 0; }
+.m-title { font-size: 60px; font-weight: 700; line-height: 1.15; }
+.m-meta { margin-top: 16px; color: var(--star); font-size: 26px; }
+.m-plot { margin-top: 28px; max-height: 250px; overflow: hidden; color: #cdd6e6; font-size: 26px; line-height: 1.5; }
+.m-facts { margin-top: 24px; }
+.m-fact { margin-top: 8px; font-size: 24px; color: #cdd6e6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-fl { display: inline-block; width: 130px; color: var(--dim); }
+.m-btns { display: flex; margin-top: 44px; }
+.m-btns .btn { padding: 0 44px; margin-right: 20px; white-space: nowrap; }

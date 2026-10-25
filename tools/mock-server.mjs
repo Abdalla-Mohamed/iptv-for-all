@@ -67,6 +67,14 @@ function api(q, res) {
       }
       return json(res, { info: { name: `Demo Series ${id - 9000}`, plot: 'A made-up show used to test the series screen.', genre: 'Test', rating: '7.5' }, episodes });
     }
+    case 'get_vod_info': {
+      const id = Number(q.get('vod_id')), n = id - 5000;
+      return json(res, {
+        info: { movie_image: '', backdrop_path: [], plot: `Plot of Demo Movie ${n}. A made-up film used to test the detail page.`, cast: 'Actor One, Actor Two, Actor Three',
+                director: 'Dir Ector', genre: 'Action / Test', releasedate: '2021-05-04', duration_secs: 120, duration: '00:02:00', rating: '7.2' },
+        movie_data: { stream_id: id, name: `Demo Movie ${n}`, container_extension: n % 5 === 0 ? 'mkv' : 'mp4' }
+      });
+    }
     case 'get_short_epg': {
       const t = Math.floor(Date.now() / 1000), slot = 1800, start = t - (t % slot);
       return json(res, { epg_listings: [0, 1, 2].map((k) => ({

@@ -220,6 +220,8 @@
         IPTV.Router.push(IPTV.Screens.Series(), { item: it.series, provider: provider, playlist: pl, focusKey: it.key });
       } else if (it.kind === 'series') {
         IPTV.Router.push(IPTV.Screens.Series(), { item: it, provider: provider, playlist: pl });
+      } else if (it.kind === 'vod' && provider.vodInfo) {       // Xtream: details first, then Play / Resume
+        IPTV.Router.push(IPTV.Screens.Movie(), { item: it, provider: provider, playlist: pl });
       } else {
         IPTV.Router.push(IPTV.Screens.Player(), { list: filtered, index: i, provider: provider, playlist: pl, kind: it.kind });
       }

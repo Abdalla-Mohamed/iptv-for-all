@@ -99,3 +99,34 @@ test('epg decodes base64 UTF-8 and caches per channel', async () => {
   await p.epg({ id: '5' });
   assert.equal(calls.length, 1);
 });
+
+test('vodInfo maps details, parses durations and caches per movie', async () => {
+  const { p, calls } = make({ get_vod_info: {
+    info: { movie_image: 'c.jpg', backdrop_path: ['b.jpg'], plot: 'P', cast: 'A, B', director: 'D', genre: 'G', releasedate: '2021-05-04', duration: '01:45:00', rating: '7.2' },
+    movie_data: { name: 'Real Name', container_extension: 'mkv' } } });
+  const info = await p.vodInfo({ id: '9', name: 'Fallback' });
+  assert.deepEqual(info, { title: 'Real Name', cover: 'c.jpg', backdrop: 'b.jpg', plot: 'P', cast: 'A, B', director: 'D', genre: 'G',
+    year: '2021', duration: 6300, rating: '7.2', ext: 'mkv' });
+  await p.vodInfo({ id: '9' });
+  assert.equal(calls.length, 1);
+});
+
+test('vodInfo tolerates sparse panels and retries after a failure', async () => {
+  const { p } = make({ get_vod_info: { info: [], movie_data: [] } });
+  const info = await p.vodInfo({ id: '3', name: 'Name', logo: 'l.png', ext: 'mp4' });
+  assert.equal(info.title, 'Name');
+  assert.equal(info.cover, 'l.png');
+  assert.equal(info.year, '');
+  const bad = make({ get_vod_info: new Error('boom') }).p;
+  await assert.rejects(bad.vodInfo({ id: '1' }), /boom/);
+  await assert.rejects(bad.vodInfo({ id: '1' }), /boom/);   // not cached
+});
+
+test('parseDuration understands h:m:s, m:s and plain seconds', () => {
+  const { parseDuration } = createRequire(import.meta.url)('../../app/js/xtream.js');
+  assert.equal(parseDuration('01:45:00'), 6300);
+  assert.equal(parseDuration('45:10'), 2710);
+  assert.equal(parseDuration('7200'), 7200);
+  assert.equal(parseDuration(''), 0);
+  assert.equal(parseDuration('abc'), 0);
+});

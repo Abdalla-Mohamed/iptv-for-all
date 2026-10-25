@@ -127,7 +127,12 @@ try {
   await press('Enter');
   await page.waitForSelector('.poster');
   await shot('07-movies');
-  await press('ArrowDown'); await press('Enter');                // Demo Movie 1 is an MP4 -> smart cache
+  await press('ArrowDown'); await press('Enter');                // open Demo Movie 1: detail page first
+  await page.waitForSelector('.screen.movie:not(.hidden)');
+  await page.waitForFunction(() => /Plot of Demo Movie/.test(document.querySelector('.m-plot').textContent));
+  assert.match(await text('.m-facts'), /Actor One/);
+  await shot('07b-movie-detail');
+  await press('Enter');                                          // Play: Demo Movie 1 is an MP4 -> smart cache
   await page.waitForFunction(() => { const v = document.getElementById('video'); return v.readyState >= 3 && v.currentTime > 0.8; }, null, { timeout: 15000 });
   assert.ok(await page.evaluate(() => !!IPTV.Engine.cache && document.getElementById('video').src.startsWith('blob:')), 'MP4 movie plays through the smart cache');
   const at = () => page.evaluate(() => document.getElementById('video').currentTime);
@@ -159,9 +164,15 @@ try {
   assert.equal(await page.locator('.p-jump.show').count(), 0);
   assert.equal(await page.locator('.screen.player').count(), 1, 'Back closes the jump box, not the player');
   step('Down = -1 min; Blue opens the jump box and Back only closes it');
+  await press('ArrowRight');                                    // +10 s: well past the 30 s "worth resuming" threshold
+  await page.waitForFunction(() => document.getElementById('video').currentTime > 38, null, { timeout: 8000 });
   await press(BACK);
-  await page.waitForSelector('.screen.main:not(.hidden)');
-  step('Back leaves the player');
+  await page.waitForSelector('.screen.movie:not(.hidden)');       // back on the detail page ...
+  assert.match(await text('.m-btns'), /Resume from/, 'detail page offers to resume');
+  await shot('07c-movie-detail-resume');
+  await press(BACK);
+  await page.waitForSelector('.screen.main:not(.hidden)');        // ... and then the list
+  step('Back leaves the player for the detail page (now offering Resume), then the list');
 
   // ---- series ------------------------------------------------------------------------------
   await press('ArrowUp', 5);

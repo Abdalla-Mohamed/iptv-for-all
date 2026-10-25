@@ -49,6 +49,23 @@ try {
   assert.match(await page.locator('.s-episodes .vcell.sel .ep-sub').innerText(), /resume at 0:40/);
   step('an episode opens its series on the right episode, showing the resume point');
 
+  // movie detail page from Continue watching: Resume vs Start over, favorites
+  await press('Escape'); await page.waitForSelector('.screen.main:not(.hidden)');
+  await press('ArrowUp', 3); await press('ArrowLeft'); await press('Enter');           // Movies tab
+  await page.waitForSelector('.poster');
+  await press('Enter');                                                                  // Demo Movie 3 (Continue watching)
+  await page.waitForSelector('.screen.movie:not(.hidden)');
+  await page.waitForFunction(() => /Plot of Demo Movie 3/.test(document.querySelector('.m-plot').textContent));
+  assert.match(await page.locator('.m-btns .btn').first().innerText(), /Resume from 40:00/);
+  await press('ArrowRight'); await press('ArrowRight'); await press('Enter');            // favorites
+  assert.equal(await page.evaluate(() => IPTV.Store.isFav('x1', 'x:vod:5003')), true);
+  assert.match(await page.locator('.m-btns .btn').nth(2).innerText(), /In favorites/);
+  await press('ArrowLeft'); await press('Enter');                                        // Start over
+  await page.waitForSelector('.screen.player');
+  await page.waitForFunction(() => { const v = document.getElementById('video'); return v.readyState >= 3 && v.currentTime > 0.3 && v.currentTime < 8; });
+  assert.equal(await page.evaluate(() => IPTV.Store.getProgress('x1', 'x:vod:5003')), 0, 'Start over clears the old resume point');
+  step('detail page: Resume / Start over / favorites');
+
   // really watching a movie records a resume point with metadata; finishing it removes the entry
   await page.evaluate(() => {
     while (IPTV.Router.stack.length > 2) IPTV.Router.pop();

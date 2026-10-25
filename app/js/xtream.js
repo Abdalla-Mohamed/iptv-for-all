@@ -223,6 +223,43 @@
     });
   };
 
+  /** "01:45:00" / "45:10" / "7200" -> seconds */
+  function parseDuration(v) {
+    if (v == null || v === '') return 0;
+    var parts = String(v).split(':').map(Number);
+    if (parts.some(isNaN)) return 0;
+    return parts.reduce(function (acc, n) { return acc * 60 + n; }, 0);
+  }
+
+  function firstString(v) { return Array.isArray(v) ? (v[0] || '') : (v || ''); }
+
+  /** Movie details for the detail page. Resolves {title, cover, backdrop, plot, cast, director, genre, year, duration, rating, ext}. */
+  P.vodInfo = function (item) {
+    var self = this;
+    this.vodCache = this.vodCache || {};
+    if (this.vodCache[item.id]) return this.vodCache[item.id];
+    var p = this.api('get_vod_info', { vod_id: item.id }, { timeout: 20000 }).then(function (j) {
+      var i = (j && j.info) || {}, d = (j && j.movie_data) || {};
+      var year = String(i.releasedate || i.release_date || '').slice(0, 4);
+      return {
+        title: d.name || i.name || item.name,
+        cover: i.movie_image || i.cover_big || item.logo || '',
+        backdrop: firstString(i.backdrop_path),
+        plot: i.plot || i.description || '',
+        cast: i.cast || i.actors || '',
+        director: i.director || '',
+        genre: i.genre || '',
+        year: /^\d{4}$/.test(year) ? year : '',
+        duration: Number(i.duration_secs) || parseDuration(i.duration),
+        rating: i.rating || item.rating || '',
+        ext: d.container_extension || item.ext || 'mp4'
+      };
+    });
+    p.catch(function () { delete self.vodCache[item.id]; });    // allow a retry after a failure
+    this.vodCache[item.id] = p;
+    return p;
+  };
+
   /** Now/next programmes: [{title, desc, start, end}] with ms timestamps. */
   P.epg = function (item) {
     var cached = this.epgCache[item.id];
@@ -237,5 +274,5 @@
     return promise;
   };
 
-  return { Provider: XtreamProvider, normalizeServer: normalizeServer };
+  return { Provider: XtreamProvider, normalizeServer: normalizeServer, parseDuration: parseDuration };
 });

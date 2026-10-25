@@ -21,6 +21,7 @@ You bring your own playlist or provider login; the app ships with **no channels 
   without losing your spot. If the provider is down or slow, the saved copy is shown instead of an error
 - **Continue watching**: the Movies and Series tabs open on your unfinished titles with a progress bar; an episode opens its
   series on that episode. Finished titles drop off the list
+- **Movie detail page** (Xtream): plot, cast, director, genre, year, rating, with Play / Resume from m:ss / Start over / Add to favorites
 - Resume where you left off, auto-play next episode, aspect cycling, audio-track switching, auto-retry on dropped live streams
 - Live: CH+/CH- zapping, number-key channel entry, channel drawer (OK)
 - HLS through the TV's native player, or **hls.js** (Settings) with a configurable read-ahead for movies
@@ -143,8 +144,7 @@ tests/                  unit + e2e
 
 ## Not implemented yet
 
-XMLTV EPG for plain M3U playlists and a channel guide grid, subtitles, catch-up/timeshift, parental lock/PIN, movie detail pages
-(plot, cast, trailer), entering playlists from a phone, MKV caching, multi-view/PiP, Stalker portals, UI translations/RTL.
+XMLTV EPG for plain M3U playlists and a channel guide grid, subtitles, catch-up/timeshift, parental lock/PIN, trailers, entering playlists from a phone, MKV caching, multi-view/PiP, Stalker portals, UI translations/RTL.
 
 Plain-M3U movies/series are detected only from Xtream-style URLs (`/movie/`, `/series/`) or video file extensions; everything else is Live.
 Browsers cannot send custom HTTP headers for media, so `|User-Agent=...` suffixes in M3U URLs are ignored.
