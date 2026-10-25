@@ -16,6 +16,9 @@ You bring your own playlist or provider login; the app ships with **no channels 
   waits for a head start before playing and refills after an underrun instead of stuttering. See [Smart cache](#smart-cache)
 - **Seek anywhere**: click or drag on the progress bar with the Magic Remote (hover shows the time), type a time with the
   number keys (`1 3 0` = 1:30), or jump by 10 s / 1 min / 10 min. The bar shows what is already cached
+- **Saved playlists**: the downloaded catalog is kept on the TV (IndexedDB), so the next start is instant and needs no
+  request. It refreshes in the background (Settings: every start / 6 h / 1 day / only when you press Blue) and swaps in place
+  without losing your spot. If the provider is down or slow, the saved copy is shown instead of an error
 - Resume where you left off, auto-play next episode, aspect cycling, audio-track switching, auto-retry on dropped live streams
 - Live: CH+/CH- zapping, number-key channel entry, channel drawer (OK)
 - HLS through the TV's native player, or **hls.js** (Settings) with a configurable read-ahead for movies
@@ -100,12 +103,13 @@ npm run dev            # http://localhost:8080  (Xtream demo/demo at http://loca
 ```
 
 Open it in a browser. The 1920x1080 stage scales to the window; arrow keys = D-pad, Enter = OK, Esc = Back, F1-F4 = Red/Green/Yellow/Blue, PageUp/PageDown = CH+/CH-.
-The mock server can throttle media to simulate a slow connection: `curl 'http://localhost:8080/__throttle?kbps=80'` (`0` = off).
+The mock server has test hooks: `/__throttle?kbps=80` (slow media, `0` = off), `/__delay?ms=2500` (slow API), `/__fail?on=1` (provider down),
+`/__rename?suffix=%20v2` (change channel names), `/__stats` (request counts).
 
 ```sh
 npm test                    # unit tests: M3U parser, Xtream client, cache policy, time entry
 npm run check:syntax        # app code and vendored libs must stay ES2015 (webOS 4 ships Chromium 53)
-npm run test:e2e            # keyboard/pointer-driven UI run + cache scenarios (needs playwright + Chromium and mock:media)
+npm run test:e2e            # keyboard/pointer-driven UI run + smart-cache and saved-playlist scenarios (needs playwright + Chromium and mock:media)
 SLOW=1 node tests/e2e/cache.mjs   # additionally proves the pause-and-refill behaviour on a link slower than the video (~2 min)
 ```
 
@@ -117,6 +121,7 @@ app/                 the webOS app (this folder is what ares-package ships)
   js/m3u.js          M3U parser (also runs in Node for tests)
   js/xtream.js       Xtream Codes API client (also runs in Node)
   js/cache-player.js smart cache: MP4 over MediaSource, read-ahead, eviction, refill policy (policy is unit-tested)
+  js/library-cache.js saved playlists (IndexedDB) + refresh policy
   js/timeentry.js    "type a time" entry
   js/engine.js       <video> + hls.js + smart cache wrapper, retries, stall watchdog
   js/widgets.js      VirtualGrid (windowed list/grid), ListZone (buttons/inputs/selects)
@@ -136,8 +141,7 @@ tests/                  unit + e2e
 ## Not implemented yet
 
 XMLTV EPG for plain M3U playlists and a channel guide grid, subtitles, catch-up/timeshift, parental lock/PIN, movie detail pages
-(plot, cast, trailer), a "continue watching" row, persistent playlist cache (the playlist is re-downloaded on every launch),
-entering playlists from a phone, MKV caching, multi-view/PiP, Stalker portals, UI translations/RTL.
+(plot, cast, trailer), a "continue watching" row, entering playlists from a phone, MKV caching, multi-view/PiP, Stalker portals, UI translations/RTL.
 
 Plain-M3U movies/series are detected only from Xtream-style URLs (`/movie/`, `/series/`) or video file extensions; everything else is Live.
 Browsers cannot send custom HTTP headers for media, so `|User-Agent=...` suffixes in M3U URLs are ignored.

@@ -59,7 +59,7 @@
         var it = grid.current();
         if (a === 'red' && it && !it.add) {
           IPTV.W.confirm('Delete playlist?', '"' + it.name + '" and its favorites will be removed from this TV.', 'Delete').then(function (yes) {
-            if (yes) { Store.removePlaylist(it.id); load(grid.index); }
+            if (yes) { Store.removePlaylist(it.id); IPTV.library.removePrefix('pl:' + it.id + ':'); load(grid.index); }
           });
           return true;
         }

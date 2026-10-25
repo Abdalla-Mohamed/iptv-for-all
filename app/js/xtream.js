@@ -41,8 +41,15 @@
     this.cfg = cfg;
     this.http = deps.http;
     this.getSettings = deps.getSettings || function () { return {}; };
+    this.store = deps.store || null;       // persistent saved copies (see library-cache.js)
+    this.isStale = deps.isStale || function () { return true; };
+    this.describeAge = deps.age || function () { return 'earlier'; };
     this.server = normalizeServer(cfg.server);
     this.sections = {};
+    this.forced = {};                      // kinds the user asked to reload (network first)
+    this.updatedAt = {};                   // kind -> ms the data was downloaded
+    this.onRefresh = null;                 // (kind, section) when a background refresh finished
+    this.onNotice = null;                  // (message) e.g. "Provider unreachable, showing the saved copy"
     this.epgCache = {};
   }
 
@@ -50,7 +57,16 @@
 
   P.kinds = function () { return ['live', 'vod', 'series']; };
   P.prepare = function () { return Promise.resolve(); };
-  P.reset = function () { this.sections = {}; this.epgCache = {}; };
+  /** Reload: forget what is in memory and go to the network first (the saved copy is only a fallback). */
+  P.reset = function () {
+    this.sections = {};
+    this.epgCache = {};
+    this.forced = { live: true, vod: true, series: true };
+  };
+
+  P.cacheKey = function (kind) { return 'pl:' + this.cfg.id + ':' + kind; };
+
+  P.age = function (kind) { return this.updatedAt[kind] || 0; };
 
   P.apiUrl = function (action, params) {
     var q = 'username=' + encodeURIComponent(this.cfg.username) + '&password=' + encodeURIComponent(this.cfg.password);
@@ -78,21 +94,67 @@
     });
   };
 
-  P.ensure = function (kind) {
-    var self = this;
-    if (this.sections[kind]) return this.sections[kind];
-    var def = SECTIONS[kind];
-    var big = { timeout: 90000 };
-    this.sections[kind] = Promise.all([
+  /** Download one section from the provider, normalize it, save a copy for the next start. */
+  P.download = function (kind) {
+    var self = this, def = SECTIONS[kind], big = { timeout: 90000 };
+    return Promise.all([
       this.api(def.cats, null, big),
       this.api(def.items, null, big)
     ]).then(function (r) {
-      return self.normalize(kind, asArray(r[0]), asArray(r[1]));
+      var sec = self.normalize(kind, asArray(r[0]), asArray(r[1]));
+      var at = Date.now();
+      self.updatedAt[kind] = at;
+      if (self.store) self.store.set(self.cacheKey(kind), { at: at, cats: sec.cats, items: sec.items });
+      return sec;
+    });
+  };
+
+  /** A saved record -> section (the per-category index is rebuilt, it is not stored). */
+  P.fromSaved = function (rec) {
+    var byCat = {};
+    for (var i = 0; i < rec.items.length; i++) (byCat[rec.items[i].cat] = byCat[rec.items[i].cat] || []).push(rec.items[i]);
+    return { cats: rec.cats, items: rec.items, byCat: byCat };
+  };
+
+  /**
+   * Saved copy first (instant start, works offline); refreshed in the background when older than the refresh setting.
+   * After a manual reload the network goes first and the saved copy is the fallback.
+   */
+  P.ensure = function (kind) {
+    var self = this;
+    if (this.sections[kind]) return this.sections[kind];
+    var force = !!this.forced[kind];
+    delete this.forced[kind];
+    var saved = this.store ? this.store.get(this.cacheKey(kind)) : Promise.resolve(null);
+
+    this.sections[kind] = saved.then(function (rec) {
+      var usable = rec && rec.items && rec.cats;
+      if (usable && !force) {
+        self.updatedAt[kind] = rec.at;
+        if (self.isStale(rec.at, self.getSettings().refreshHours)) self.refreshInBackground(kind);
+        return self.fromSaved(rec);
+      }
+      return self.download(kind).catch(function (err) {
+        if (usable) {      // provider down / slow: the saved copy is better than an error
+          self.updatedAt[kind] = rec.at;
+          if (self.onNotice) self.onNotice('Provider not reachable: showing the copy saved ' + self.describeAge(rec.at));
+          return self.fromSaved(rec);
+        }
+        throw err;
+      });
     }).catch(function (err) {
-      delete self.sections[kind]; // allow retry
+      delete self.sections[kind];   // allow retry
       throw err;
     });
     return this.sections[kind];
+  };
+
+  P.refreshInBackground = function (kind) {
+    var self = this;
+    this.download(kind).then(function (sec) {
+      self.sections[kind] = Promise.resolve(sec);
+      if (self.onRefresh) self.onRefresh(kind, sec);
+    }).catch(function () { /* stay on the saved copy */ });
   };
 
   P.normalize = function (kind, rawCats, rawItems) {

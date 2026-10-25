@@ -18,6 +18,8 @@
         function (v) { Store.setSetting('cacheMb', v); }),
       W.select('HLS movie buffer (hls.js engine)', [{ value: 30, label: '30 seconds' }, { value: 120, label: '2 minutes' }, { value: 300, label: '5 minutes' }], s.hlsBufferSec,
         function (v) { Store.setSetting('hlsBufferSec', v); }),
+      W.select('Refresh saved playlists', [{ value: 0, label: 'Every start' }, { value: 6, label: 'After 6 hours' }, { value: 24, label: 'After 1 day' }, { value: -1, label: 'Only when I press Blue' }], s.refreshHours,
+        function (v) { Store.setSetting('refreshHours', v); }),
       W.select('Default picture mode', [{ value: 'contain', label: 'Fit' }, { value: 'cover', label: 'Zoom' }, { value: 'fill', label: 'Stretch' }], s.aspect,
         function (v) { Store.setSetting('aspect', v); }),
       W.input('CORS proxy (advanced, optional)', s.corsProxy, {
@@ -28,6 +30,7 @@
         W.confirm('Clear all data?', 'This removes every playlist, favorite and resume point.', 'Clear').then(function (yes) {
           if (!yes) return;
           Store.clearAll();
+          IPTV.library.clear();
           IPTV.toast('All data cleared');
           IPTV.Router.popToRoot();
           IPTV.Router.top().onResume();

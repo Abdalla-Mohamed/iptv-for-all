@@ -12,7 +12,8 @@
     aspect: 'contain',   // contain | cover | fill
     corsProxy: '',       // optional prefix; the real URL is appended URL-encoded
     cacheMb: 128,        // smart cache for MP4 movies/episodes: 0 = off, else memory budget in MB
-    hlsBufferSec: 120    // hls.js read-ahead for HLS movies
+    hlsBufferSec: 120,   // hls.js read-ahead for HLS movies
+    refreshHours: 6      // refresh a saved playlist in the background when older than this: 0 = every start, -1 = manual
   };
 
   function read(key, def) {

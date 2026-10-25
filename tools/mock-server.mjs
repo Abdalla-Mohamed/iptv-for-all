@@ -10,6 +10,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// test hooks: /__stats (request counts), /__rename?suffix=X (changes channel names), /__fail?on=1 (provider returns 503),
+// /__delay?ms=N (slows the Xtream API)
+const stats = {};
+let liveSuffix = '', providerDown = false, apiDelayMs = 0;
+const count = (k) => { stats[k] = (stats[k] || 0) + 1; };
 let throttleKbps = 0;   // set with GET /__throttle?kbps=N (0 = unlimited); applies to media responses
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const appDir = path.join(root, 'app');
@@ -39,6 +44,8 @@ const b64 = (s) => Buffer.from(s, 'utf8').toString('base64');
 const json = (res, obj, code = 200) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }); res.end(JSON.stringify(obj)); };
 
 function api(q, res) {
+  count(q.get('action') || 'login');
+  if (providerDown) { res.writeHead(503, { 'Access-Control-Allow-Origin': '*' }); return res.end('down'); }
   if (q.get('username') !== 'demo' || q.get('password') !== 'demo') {
     return json(res, { user_info: { auth: 0 } });
   }
@@ -46,7 +53,7 @@ function api(q, res) {
     case null: case '':
       return json(res, { user_info: { auth: 1, status: 'Active', exp_date: String(Math.floor(Date.now() / 1000) + 86400 * 90), max_connections: '1' }, server_info: {} });
     case 'get_live_categories': return json(res, LIVE_CATS.map((n, i) => ({ category_id: String(i + 1), category_name: n })));
-    case 'get_live_streams': return json(res, live);
+    case 'get_live_streams': return json(res, liveSuffix ? live.map((c) => ({ ...c, name: c.name + liveSuffix })) : live);
     case 'get_vod_categories': return json(res, ['Action', 'Comedy', 'Drama', 'Sci-Fi'].map((n, i) => ({ category_id: String(i + 1), category_name: n })));
     case 'get_vod_streams': return json(res, vod);
     case 'get_series_categories': return json(res, ['Crime', 'Fantasy', 'Anime'].map((n, i) => ({ category_id: String(i + 1), category_name: n })));
@@ -112,8 +119,15 @@ const safeJoin = (base, rel) => { const p = path.normalize(path.join(base, rel))
 http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = decodeURIComponent(url.pathname);
-  if (p === '/player_api.php') return api(url.searchParams, res);
-  if (p === '/playlist.m3u') { res.writeHead(200, { 'Content-Type': 'audio/x-mpegurl', 'Access-Control-Allow-Origin': '*' }); return res.end(m3u(req.headers.host)); }
+  if (p === '/player_api.php') return apiDelayMs ? setTimeout(() => api(url.searchParams, res), apiDelayMs) : api(url.searchParams, res);
+  if (p === '/__delay') { apiDelayMs = Number(url.searchParams.get('ms')) || 0; res.writeHead(200); return res.end('ok'); }
+  if (p === '/__stats') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(stats)); }
+  if (p === '/__rename') { liveSuffix = url.searchParams.get('suffix') || ''; res.writeHead(200); return res.end('ok'); }
+  if (p === '/__fail') { providerDown = url.searchParams.get('on') === '1'; res.writeHead(200); return res.end('ok'); }
+  if (p === '/playlist.m3u') {
+    count('m3u');
+    if (providerDown) { res.writeHead(503, { 'Access-Control-Allow-Origin': '*' }); return res.end('down'); }
+    res.writeHead(200, { 'Content-Type': 'audio/x-mpegurl', 'Access-Control-Allow-Origin': '*' }); return res.end(m3u(req.headers.host)); }
   if (p === '/__throttle') { throttleKbps = Number(url.searchParams.get('kbps')) || 0; res.writeHead(200); return res.end(String(throttleKbps)); }
   // any Xtream stream URL maps to the generated test media (MP4 ids divisible by 7 get the moov-at-end file)
   if (/^\/(movie|series)\//.test(p) || p.startsWith('/stream/')) {

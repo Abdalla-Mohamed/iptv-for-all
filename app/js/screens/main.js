@@ -154,6 +154,7 @@
       provider.ensure(k).then(function (sec) {
         if (asked !== kind) return;
         section = sec;
+        showAge();
         content.setMessage('');
         refreshCats(0);
         applyFilter(0);
@@ -177,7 +178,7 @@
       focusZone('content');
     }
 
-    function applyFilter(index) {
+    function applyFilter(index, keepKey) {
       if (!section) return;
       var q = query.toLowerCase(), list;
       if (q) {
@@ -189,6 +190,9 @@
       } else if (catId === '__recent') list = recentItems();
       else list = section.byCat[catId] || [];
       filtered = list;
+      if (keepKey) {            // a background refresh swapped the data: stay on the same item
+        for (var k = 0; k < list.length; k++) if (list[k].key === keepKey) { index = k; break; }
+      }
       var catName = 'All';
       cats.items.forEach(function (c) { if (c.id === catId) catName = c.name; });
       count.textContent = (q ? 'Search "' + query + '"' : catName) + '  ·  ' + plural(list.length, kind);
@@ -203,6 +207,26 @@
       } else {
         IPTV.Router.push(IPTV.Screens.Player(), { list: filtered, index: i, provider: provider, playlist: pl, kind: it.kind });
       }
+    }
+
+    function showAge() {
+      var at = provider.age(kind);
+      plName.textContent = pl.name + (at ? '  \u00B7  ' + IPTV.LibraryCache.age(at) : '');
+    }
+
+    /** A background refresh finished: swap the data in place, keep category and selected item. */
+    function onRefreshed(k, sec) {
+      if (provider.type === 'm3u') {
+        var now = provider.kinds();
+        if (now.join() !== kinds.join()) { kinds = now; if (kinds.indexOf(kind) < 0) { selectKind(kinds[0]); return; } buildTabs(); }
+      }
+      if (k !== kind || !section) return;
+      var cur = content.current();
+      section = sec;
+      showAge();
+      refreshCats();
+      applyFilter(content.index, cur && cur.key);
+      IPTV.toast('Playlist updated');
     }
 
     // ---- live info panel ---------------------------------------------------------
@@ -309,6 +333,8 @@
       onShow: function (params) {
         pl = params.playlist;
         provider = IPTV.createProvider(pl);
+        provider.onNotice = function (msg) { IPTV.toast(msg, 5000); };
+        provider.onRefresh = onRefreshed;
         kinds = ['live', 'vod', 'series'];
         kind = 'live';
         buildTabs();

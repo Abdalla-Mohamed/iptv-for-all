@@ -97,6 +97,7 @@
     function finish(pl) {
       var isNew = !editing;
       Store.savePlaylist(pl);
+      if (!isNew) IPTV.library.removePrefix('pl:' + pl.id + ':');    // new address/login: the saved copy may be wrong
       IPTV.Router.pop();
       if (isNew) {   // first thing a new user wants is to see their channels
         Store.setActiveId(pl.id);
