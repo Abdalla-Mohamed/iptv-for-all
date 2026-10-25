@@ -11,7 +11,7 @@
     415: 'play', 19: 'pause', 179: 'playpause', 10252: 'playpause',
     413: 'stop', 412: 'rw', 417: 'ff',
     427: 'chup', 428: 'chdown', 33: 'chup', 34: 'chdown',
-    457: 'info'
+    457: 'info', 460: 'subtitle'
   };
 
   function action(code) {

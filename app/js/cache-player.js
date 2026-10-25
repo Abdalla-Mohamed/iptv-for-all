@@ -76,7 +76,7 @@
 
   // ---- the player (browser only) ----------------------------------------------------------------------------
 
-  /** opts: { startAt, cacheBytes, onStatus(status), onFallback(reason, time) } */
+  /** opts: { startAt, cacheBytes, audioIndex (optional), preferAudio (language code), onStatus(status), onFallback(reason, time) } */
   function CachePlayer(video, url, opts) {
     this.video = video;
     this.url = url;
@@ -86,6 +86,8 @@
     this.mp4 = null; this.ms = null; this.objectUrl = '';
     this.info = null; this.msOpen = false; this.setupDone = false;
     this.entries = [];
+    this.audioTracks = [];        // [{id, lang, label}] every audio track of the file (one at a time goes to MSE)
+    this.audioIndex = 0;
     this.duration = 0;
     this.bytesPerSec = 512 * 1024;
     this.plan = plan(this.cacheBytes, this.bytesPerSec);
@@ -161,12 +163,17 @@
     var info = this.info, self = this;
     if (info.isFragmented) { this.fail('fragmented MP4'); return; }
 
-    var vt = null, at = null;
+    var vt = null, audios = [];
     info.tracks.forEach(function (t) {
       if (t.video && !vt) vt = t;
-      else if (t.audio && !at) at = t;
+      else if (t.audio) audios.push(t);
     });
     if (!vt) { this.fail('no video track'); return; }
+    this.audioTracks = audios.map(function (t) { return { id: t.id, lang: t.language || '', label: t.name || '' }; });
+    var ai = this.opts.audioIndex;
+    if (ai == null && this.opts.preferAudio && root.IPTV && root.IPTV.Langs) ai = root.IPTV.Langs.pick(this.audioTracks, this.opts.preferAudio);
+    this.audioIndex = ai != null && ai >= 0 && ai < audios.length ? ai : 0;
+    var at = audios[this.audioIndex] || null;
 
     var tracks = at ? [vt, at] : [vt], entries = [];
     for (var i = 0; i < tracks.length; i++) {

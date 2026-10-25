@@ -25,7 +25,7 @@ const port = Number(process.argv[2] || process.env.PORT || 8080);
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.png': 'image/png', '.webm': 'video/webm', '.mp4': 'video/mp4',
-  '.m3u8': 'application/vnd.apple.mpegurl', '.m4s': 'video/iso.segment', '.ts': 'video/mp2t', '.svg': 'image/svg+xml'
+  '.m3u8': 'application/vnd.apple.mpegurl', '.vtt': 'text/vtt', '.m4s': 'video/iso.segment', '.ts': 'video/mp2t', '.svg': 'image/svg+xml'
 };
 
 // ---- fake catalogue -----------------------------------------------------------
@@ -162,11 +162,18 @@ http.createServer((req, res) => {
     if (providerDown) { res.writeHead(503, { 'Access-Control-Allow-Origin': '*' }); return res.end('down'); }
     res.writeHead(200, { 'Content-Type': 'audio/x-mpegurl', 'Access-Control-Allow-Origin': '*' }); return res.end(m3u(req.headers.host)); }
   if (p === '/__throttle') { throttleKbps = Number(url.searchParams.get('kbps')) || 0; res.writeHead(200); return res.end(String(throttleKbps)); }
+  // HLS movie with alternate audio + subtitles: .../ID.m3u8 is the master playlist, its relative files live in hls-sub/
+  if (/^\/(movie|series)\//.test(p)) {
+    const base = path.basename(p), sub = path.join(mediaDir, 'hls-sub', base);
+    if (/^\d+\.m3u8$/.test(base)) return serveFile(req, res, path.join(mediaDir, 'hls-sub', 'master.m3u8'));
+    if (!/^\d+\.\w+$/.test(base) && fs.existsSync(sub)) return serveFile(req, res, sub);
+  }
   // any Xtream stream URL maps to the generated test media (MP4 ids divisible by 7 get the moov-at-end file)
   if (/^\/(movie|series)\//.test(p) || p.startsWith('/stream/')) {
     const id = Number((/(\d+)\.\w+$/.exec(p) || [])[1]) || 0;
     // ids divisible by 11 are a WebM served under a .mp4 URL (a provider that lies about the container)
-    const file = p.endsWith('.mp4') && id % 11 !== 0 ? (id % 7 === 0 ? 'movie-tail.mp4' : 'movie.mp4') : 'test.webm';
+    // ids divisible by 13 carry two audio tracks (eng / ara)
+    const file = p.endsWith('.mp4') && id % 11 !== 0 ? (id % 13 === 0 ? 'movie-2audio.mp4' : id % 7 === 0 ? 'movie-tail.mp4' : 'movie.mp4') : 'test.webm';
     return serveFile(req, res, path.join(mediaDir, file));
   }
   if (/^\/live\/[^/]+\/[^/]+\/\d+\.m3u8$/.test(p)) return serveFile(req, res, path.join(mediaDir, 'hls', 'index.m3u8'));

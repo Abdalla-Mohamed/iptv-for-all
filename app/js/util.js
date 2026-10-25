@@ -82,7 +82,17 @@
     toastTimer = setTimeout(function () { el.className = ''; }, ms || 2500);
   }
 
+  /** Subtitle text size/background from Settings (::cue is only reachable through a stylesheet). */
+  var CUE_PX = { small: 34, medium: 44, large: 58 };
+  function applyCueStyle() {
+    var size = CUE_PX[IPTV.Store.settings().subSize] || CUE_PX.medium;
+    var el = document.getElementById('cue-style');
+    if (!el) { el = document.createElement('style'); el.id = 'cue-style'; document.head.appendChild(el); }
+    el.textContent = 'video::cue { font-size: ' + size + 'px; color: #fff; background: rgba(0, 0, 0, .68); line-height: 1.25; }';
+  }
+
   IPTV.h = h;
+  IPTV.applyCueStyle = applyCueStyle;
   IPTV.clear = clear;
   IPTV.debounce = debounce;
   IPTV.clamp = clamp;

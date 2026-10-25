@@ -20,6 +20,12 @@
         function (v) { Store.setSetting('hlsBufferSec', v); }),
       W.select('Refresh saved playlists', [{ value: 0, label: 'Every start' }, { value: 6, label: 'After 6 hours' }, { value: 24, label: 'After 1 day' }, { value: -1, label: 'Only when I press Blue' }], s.refreshHours,
         function (v) { Store.setSetting('refreshHours', v); }),
+      W.select('Preferred audio language', IPTV.Langs.OPTIONS.map(function (o) { return o.value ? o : { value: '', label: 'Stream default' }; }), s.audioLang,
+        function (v) { Store.setSetting('audioLang', v); }),
+      W.select('Preferred subtitles', IPTV.Langs.OPTIONS.map(function (o) { return o.value ? o : { value: '', label: 'Off' }; }), s.subLang,
+        function (v) { Store.setSetting('subLang', v); }),
+      W.select('Subtitle size', [{ value: 'small', label: 'Small' }, { value: 'medium', label: 'Medium' }, { value: 'large', label: 'Large' }], s.subSize,
+        function (v) { Store.setSetting('subSize', v); IPTV.applyCueStyle(); }),
       W.select('Default picture mode', [{ value: 'contain', label: 'Fit' }, { value: 'cover', label: 'Zoom' }, { value: 'fill', label: 'Stretch' }], s.aspect,
         function (v) { Store.setSetting('aspect', v); }),
       W.input('CORS proxy (advanced, optional)', s.corsProxy, {
@@ -44,7 +50,7 @@
 
     var el = h('div', { className: 'screen' }, [
       h('div', { className: 'brand-bar' }, [h('div', { className: 'brand', text: 'IPTV For All' }), h('div', { className: 'brand-sub', text: 'Settings' })]),
-      h('div', { className: 'form-wrap' }, [
+      h('div', { className: 'form-wrap scroller' }, [
         list,
         h('div', { className: 'about', text: 'IPTV For All v' + IPTV.Version + '  ·  open source (Apache-2.0)  ·  ships without any channels or content' })
       ]),

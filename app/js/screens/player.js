@@ -5,7 +5,7 @@
   'use strict';
   var IPTV = root.IPTV = root.IPTV || {};
   IPTV.Screens = IPTV.Screens || {};
-  var h = IPTV.h, Engine = IPTV.Engine, Store = IPTV.Store, TE = IPTV.TimeEntry;
+  var h = IPTV.h, W = IPTV.W, Engine = IPTV.Engine, Store = IPTV.Store, TE = IPTV.TimeEntry;
 
   var ASPECTS = [
     { value: 'contain', label: 'Fit' },
@@ -66,6 +66,8 @@
     var numBox = h('div', { className: 'p-num' });
     var pauseMark = h('div', { className: 'p-pause', text: '⏸' });
     var drawerEl = h('div', { className: 'p-drawer' });
+    var tracksEl = h('div', { className: 'p-tracks scroller' });
+    var tracksOpen = false, tracksZone = null;
     var jumpValue = h('div', { className: 'p-jv' });
     var jumpNote = h('div', { className: 'p-jn' });
     var jumpBox = h('div', { className: 'p-jump' }, [
@@ -73,7 +75,7 @@
       h('div', { className: 'p-jh', text: '0-9 type time     ◀ delete     OK go     BACK cancel' })
     ]);
 
-    var el = h('div', { className: 'screen player' }, [spinner, top, bottom, numBox, pauseMark, err, drawerEl, jumpBox]);
+    var el = h('div', { className: 'screen player' }, [spinner, top, bottom, numBox, pauseMark, err, drawerEl, tracksEl, jumpBox]);
 
     // ---- helpers -------------------------------------------------------------
     function hideOverlay() { el.classList.remove('show-ui'); }
@@ -81,7 +83,7 @@
       el.classList.add('show-ui');
       clearTimeout(overlayTimer);
       overlayTimer = setTimeout(function () {
-        if (!drawerOpen && !jump && !scrubbing && state !== 'paused') hideOverlay();
+        if (!drawerOpen && !jump && !scrubbing && !tracksOpen && state !== 'paused') hideOverlay();
       }, ms || OVERLAY_MS);
     }
 
@@ -149,7 +151,7 @@
     function paintHints() {
       var parts = live ? ['OK Channels', 'CH± Zap', '0-9 Jump']
         : ['◀▶ ±10 s', '▲▼ ±1 min', 'CH± ±10 min', '0-9 / Blue Go to time', 'OK Pause'];
-      parts.push('Red Favorite', 'Green Audio', 'Yellow Aspect (' + ASPECTS[aspect].label + ')');
+      parts.push('Red Favorite', 'Green Audio / Subtitles', 'Yellow Aspect (' + ASPECTS[aspect].label + ')');
       hints.textContent = parts.join('    ·    ');
     }
 
@@ -295,6 +297,53 @@
       else if (!jump) { Engine.togglePause(); showOverlay(); }
     });
 
+    // ---- audio / subtitle picker ------------------------------------------------------------------
+    var SIZES = [{ value: 'small', label: 'Small' }, { value: 'medium', label: 'Medium' }, { value: 'large', label: 'Large' }];
+
+    function openTracks() {
+      var t = Engine.tracks();
+      if (t.audio.length < 2 && !t.text.length) { IPTV.toast('No other audio or subtitle tracks in this stream'); return; }
+      var zoneItems = [];
+      IPTV.clear(tracksEl);
+      tracksEl.appendChild(h('div', { className: 'pt-title', text: 'Audio & subtitles' }));
+      function row(label, active, fn) {
+        var b = W.button((active ? '\u2713  ' : '      ') + label, fn, active ? 'on' : '');
+        tracksEl.appendChild(b.el);
+        zoneItems.push(b);
+      }
+      if (t.audio.length > 1) {
+        tracksEl.appendChild(h('div', { className: 'pt-head', text: 'Audio' }));
+        t.audio.forEach(function (a) {
+          row(a.label, a.active, function () { Engine.setAudio(a.id); closeTracks(); IPTV.toast('Audio: ' + a.label); });
+        });
+      }
+      if (t.text.length) {
+        tracksEl.appendChild(h('div', { className: 'pt-head', text: 'Subtitles' }));
+        row('Off', !t.text.some(function (x) { return x.active; }), function () { Engine.setText(-1); closeTracks(); IPTV.toast('Subtitles off'); });
+        t.text.forEach(function (x) {
+          row(x.label, x.active, function () { Engine.setText(x.id); closeTracks(); IPTV.toast('Subtitles: ' + x.label); });
+        });
+        var size = W.select('Subtitle size', SIZES, Store.settings().subSize, function (v) { Store.setSetting('subSize', v); IPTV.applyCueStyle(); });
+        tracksEl.appendChild(h('div', { className: 'pt-head', text: 'Appearance' }));
+        tracksEl.appendChild(size.el);
+        zoneItems.push(size);
+      }
+      tracksZone = new IPTV.ListZone({ dir: 'v', items: zoneItems });
+      var first = -1;                           // start on the active audio track (the first ticked row)
+      zoneItems.forEach(function (b, n) { if (first < 0 && b.el.classList.contains('on')) first = n; });
+      tracksZone.setIndex(Math.max(0, first));
+      tracksZone.setActive(true);
+      tracksOpen = true;
+      el.classList.add('tracks-open');
+      showOverlay(60000);
+    }
+
+    function closeTracks() {
+      tracksOpen = false;
+      el.classList.remove('tracks-open');
+      showOverlay();
+    }
+
     // ---- channel jump / drawer -------------------------------------------------------
     function jumpToNumber(n) {
       for (var i = 0; i < p.list.length; i++) {
@@ -355,6 +404,11 @@
     // ---- keys ----------------------------------------------------------------
     function onKey(a) {
       if (jump) return onJumpKey(a);
+      if (tracksOpen) {
+        if (a === 'back' || a === 'green' || a === 'subtitle') { closeTracks(); return true; }
+        tracksZone.handleKey(a);
+        return true;
+      }
       if (drawerOpen) {
         if (a === 'back' || a === 'left') { closeDrawer(); return true; }
         if (drawer.handleKey(a)) return true;
@@ -395,9 +449,7 @@
           aspect = (aspect + 1) % ASPECTS.length;
           Engine.setAspect(ASPECTS[aspect].value);
           IPTV.toast('Aspect: ' + ASPECTS[aspect].label); paintHints(); return true;
-        case 'green':
-          var label = Engine.nextAudio();
-          IPTV.toast(label ? 'Audio: ' + label : 'No other audio tracks'); return true;
+        case 'green': case 'subtitle': openTracks(); return true;
       }
       if (/^num\d$/.test(a)) {
         if (!live) { openJump(a.charAt(3)); return true; }
@@ -425,6 +477,7 @@
         ASPECTS.forEach(function (a, i) { if (a.value === Store.settings().aspect) aspect = i; });
         Engine.setAspect(ASPECTS[aspect].value);
         document.body.classList.add('playing');
+        IPTV.applyCueStyle();
         Engine.onEvent = onEngine;
         play(p.index);
       },

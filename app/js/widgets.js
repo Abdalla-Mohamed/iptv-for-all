@@ -189,7 +189,19 @@
   Z.setIndex = function (i) {
     this.index = clamp(i, 0, Math.max(0, this.items.length - 1));
     this.paint();
+    if (this.dir === 'v' && this.items[this.index]) reveal(this.items[this.index].el);
   };
+
+  /** Scroll the nearest .scroller ancestor so `el` is fully visible (works under the desktop stage scale too). */
+  function reveal(el) {
+    var sc = el.parentNode;
+    while (sc && !(sc.classList && sc.classList.contains('scroller'))) sc = sc.parentNode;
+    if (!sc) return;
+    var r = el.getBoundingClientRect(), b = sc.getBoundingClientRect();
+    var scale = sc.offsetHeight ? b.height / sc.offsetHeight : 1;
+    if (r.top < b.top + 8 * scale) sc.scrollTop -= (b.top + 8 * scale - r.top) / scale;
+    else if (r.bottom > b.bottom - 8 * scale) sc.scrollTop += (r.bottom - (b.bottom - 8 * scale)) / scale;
+  }
 
   Z.setActive = function (on) {
     this.active = on;
