@@ -91,7 +91,7 @@ body.playing #video { visibility: visible; }
 /* ---- main browser ---- */
 .topbar { height: 110px; padding: 0 48px; display: flex; align-items: center; border-bottom: 1px solid var(--line); background: #0d1320; }
 .topbar .brand { font-size: 32px; }
-.topbar .brand-sub { margin-left: 24px; font-size: 24px; max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar .brand-sub { margin-left: 24px; font-size: 24px; max-width: 380px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tabs { display: flex; margin-left: 40px; flex: 1; }
 .tab { height: 64px; line-height: 60px; padding: 0 34px; margin-right: 14px; font-size: 28px; border-radius: 32px; background: transparent; border-color: transparent; color: var(--dim); }
 .tab.on { color: #fff; background: #1e293b; border-color: #1e293b; }
@@ -117,7 +117,10 @@ body.playing #video { visibility: visible; }
 .rl-num { width: 84px; color: var(--dim); font-size: 24px; }
 .rl-logo { width: 100px; height: 64px; margin-right: 24px; display: flex; align-items: center; justify-content: center; background: #0e1522; border-radius: 8px; overflow: hidden; }
 .rl-logo img { max-width: 100%; max-height: 100%; }
-.rl-name { flex: 1; font-size: 30px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rl-text { flex: 1; min-width: 0; }
+.rl-name { font-size: 30px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rl-now { margin-top: 2px; font-size: 20px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vgrid.active .vcell.sel .rl-now { color: #dbeafe; }
 .star { color: var(--star); font-size: 28px; margin-left: 14px; }
 .vgrid.active .vcell.sel .rl-num { color: #dbeafe; }
 

@@ -208,7 +208,7 @@ try {
   await page.waitForSelector('.form-wrap');
   await fill('Mock M3U');
   await press('ArrowDown', 2); await fill(BASE + '/playlist.m3u');
-  await press('ArrowDown'); await press('Enter');               // Save -> opens the new playlist
+  await press('ArrowDown', 2); await press('Enter');            // (skip the optional guide URL) Save -> opens the new playlist
   await page.waitForSelector('.screen.main:not(.hidden)');
   await page.waitForSelector('.row-live');
   await page.waitForFunction(() => /52 channels|50 channels/.test(document.querySelector('.count').textContent));

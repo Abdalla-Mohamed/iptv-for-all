@@ -8,6 +8,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 // test hooks: /__stats (request counts), /__rename?suffix=X (changes channel names), /__fail?on=1 (provider returns 503),
@@ -86,8 +87,9 @@ function api(q, res) {
 }
 
 function m3u(host) {
-  const lines = ['#EXTM3U x-tvg-url="http://example.invalid/epg.xml"'];
-  for (let i = 1; i <= 50; i++) lines.push(`#EXTINF:-1 tvg-id="m${i}" tvg-logo="" group-title="${i % 2 ? 'Odd, Group' : 'Even'}",M3U Channel ${i}`, `http://${host}/stream/test.webm?c=${i}`);
+  const lines = [`#EXTM3U x-tvg-url="http://${host}/epg.xml.gz"`];
+  // channel 50 has no tvg-id: the guide is matched through its display name
+  for (let i = 1; i <= 50; i++) lines.push(`#EXTINF:-1 ${i === 50 ? '' : `tvg-id="m${i}" `}tvg-logo="" group-title="${i % 2 ? 'Odd, Group' : 'Even'}",M3U Channel ${i}`, `http://${host}/stream/test.webm?c=${i}`);
   lines.push('#EXTINF:-1 group-title="Films",A Movie', `http://${host}/movie/demo/demo/1.webm`);
   return lines.join('\n') + '\n';
 }
@@ -98,6 +100,22 @@ function sendStream(stream, res) {
   stream.on('data', (chunk) => { stream.pause(); res.write(chunk); setTimeout(() => stream.resume(), chunk.length / bytesPerMs); });
   stream.on('end', () => res.end());
   res.on('close', () => stream.destroy());
+}
+
+/** XMLTV for the M3U channels, times written in UTC+2 to exercise offset parsing; titles carry an entity to exercise decoding. */
+function xmltv() {
+  const slot = 30 * 60000, base = Date.now() - (Date.now() % slot);
+  const fmt = (ms) => new Date(ms + 2 * 3600000).toISOString().replace(/[-:T]/g, '').slice(0, 14) + ' +0200';
+  let out = '<?xml version="1.0" encoding="UTF-8"?>\n<tv generator-info-name="mock">\n';
+  for (let i = 1; i <= 50; i++) {
+    const id = i === 50 ? 'x50' : `m${i}`;
+    out += `<channel id="${id}"><display-name>M3U Channel ${i}</display-name></channel>\n`;
+    ['Earlier', 'Now', 'Next', 'Later'].forEach((label, k) => {
+      const title = k === 1 ? `Now &amp; Live on ${i}` : `${label} on ${i}`;
+      out += `<programme start="${fmt(base + (k - 1) * slot)}" stop="${fmt(base + k * slot)}" channel="${id}"><title lang="en">${title}</title><desc>About ${label} ${i}</desc></programme>\n`;
+    });
+  }
+  return out + '</tv>\n';
 }
 
 function serveFile(req, res, file) {
@@ -129,6 +147,13 @@ http.createServer((req, res) => {
   const p = decodeURIComponent(url.pathname);
   if (p === '/player_api.php') return apiDelayMs ? setTimeout(() => api(url.searchParams, res), apiDelayMs) : api(url.searchParams, res);
   if (p === '/__delay') { apiDelayMs = Number(url.searchParams.get('ms')) || 0; res.writeHead(200); return res.end('ok'); }
+  if (p === '/epg.xml' || p === '/epg.xml.gz') {
+    count('epg');
+    if (providerDown) { res.writeHead(503, { 'Access-Control-Allow-Origin': '*' }); return res.end('down'); }
+    const xml = xmltv(), gz = p.endsWith('.gz');
+    res.writeHead(200, { 'Content-Type': gz ? 'application/gzip' : 'application/xml', 'Access-Control-Allow-Origin': '*' });
+    return res.end(gz ? zlib.gzipSync(xml) : xml);
+  }
   if (p === '/__stats') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(stats)); }
   if (p === '/__rename') { liveSuffix = url.searchParams.get('suffix') || ''; res.writeHead(200); return res.end('ok'); }
   if (p === '/__fail') { providerDown = url.searchParams.get('on') === '1'; res.writeHead(200); return res.end('ok'); }

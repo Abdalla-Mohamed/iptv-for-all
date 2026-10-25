@@ -43,6 +43,24 @@
     });
   }
 
+  /** Binary download (gzip'd guides). Resolves an ArrayBuffer. */
+  function getBuffer(url, opts) {
+    opts = opts || {};
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      try { xhr.open('GET', proxify(url), true); } catch (e) { reject(new Error('Invalid address.')); return; }
+      xhr.responseType = 'arraybuffer';
+      xhr.timeout = opts.timeout || 30000;
+      xhr.onload = function () {
+        if (xhr.status >= 200 && xhr.status < 300) resolve(xhr.response);
+        else reject(httpError(xhr.status));
+      };
+      xhr.onerror = function () { var e = new Error('Cannot reach the server.'); e.status = 0; reject(e); };
+      xhr.ontimeout = function () { var e = new Error('The server took too long to respond.'); e.status = 0; reject(e); };
+      xhr.send();
+    });
+  }
+
   function getJSON(url, opts) {
     return getText(url, opts).then(function (text) {
       try { return JSON.parse(text); }
@@ -50,5 +68,5 @@
     });
   }
 
-  IPTV.Http = { getText: getText, getJSON: getJSON };
+  IPTV.Http = { getText: getText, getJSON: getJSON, getBuffer: getBuffer };
 })(window);

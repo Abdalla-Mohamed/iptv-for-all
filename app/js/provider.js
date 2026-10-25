@@ -6,8 +6,12 @@
   function M3UProvider(cfg, deps) {
     deps = deps || {};
     this.type = 'm3u';
-    this.hasEpg = false;
     this.cfg = cfg;
+    this.epgUrl = '';              // from the playlist header (x-tvg-url) unless cfg.epgUrl overrides it
+    this.guide = null;             // parsed XMLTV: {programmes, names}
+    this.guidePromise = null;
+    this.forceGuide = false;
+    this.onGuide = null;           // () when the guide finished loading
     this.lib = null;
     this.pending = null;
     this.store = deps.store || null;
@@ -22,7 +26,60 @@
 
   var P = M3UProvider.prototype;
 
-  P.reset = function () { this.lib = null; this.pending = null; this.forced = true; };
+  P.reset = function () {
+    this.lib = null; this.pending = null; this.forced = true;
+    this.guide = null; this.guidePromise = null; this.forceGuide = true;
+  };
+
+  Object.defineProperty(P, 'hasEpg', { get: function () { return !!(this.cfg.epgUrl || this.epgUrl); } });
+  P.guideUrl = function () { return this.cfg.epgUrl || this.epgUrl; };
+
+  var GUIDE_MAX_AGE_HOURS = 12;
+
+  /** gzip magic bytes -> inflate, otherwise plain text. */
+  function decodeGuide(buf) {
+    var u8 = new Uint8Array(buf);
+    if (u8[0] === 0x1f && u8[1] === 0x8b) {
+      if (!root.pako) throw new Error('gzip not supported');
+      return root.pako.inflate(u8, { to: 'string' });
+    }
+    return root.TextDecoder ? new root.TextDecoder('utf-8').decode(u8) : String.fromCharCode.apply(null, u8);
+  }
+
+  /**
+   * The program guide, loaded in the background (never blocks the channel list): a saved copy younger than 12 h is used
+   * as is, otherwise it is downloaded (gzip handled), parsed in time slices and saved. Resolves null if unavailable.
+   */
+  P.loadGuide = function () {
+    var self = this;
+    if (!this.hasEpg) return Promise.resolve(null);
+    if (this.guidePromise) return this.guidePromise;
+    var key = 'pl:' + this.cfg.id + ':epg', force = this.forceGuide;
+    this.forceGuide = false;
+    var saved = this.store ? this.store.get(key) : Promise.resolve(null);
+    this.guidePromise = saved.then(function (rec) {
+      var usable = rec && rec.guide && rec.url === self.guideUrl();
+      if (usable && !force && !self.isStale(rec.at, GUIDE_MAX_AGE_HOURS)) return rec.guide;
+      return IPTV.Http.getBuffer(self.guideUrl(), { timeout: 180000 }).then(function (buf) {
+        return IPTV.XmlTv.parseAsync(decodeGuide(buf), Date.now());
+      }).then(function (guide) {
+        if (self.store) self.store.set(key, { at: Date.now(), url: self.guideUrl(), guide: guide });
+        return guide;
+      }).catch(function () { return usable ? rec.guide : null; });
+    }).then(function (guide) {
+      self.guide = guide;
+      if (guide && self.onGuide) self.onGuide();
+      return guide;
+    });
+    return this.guidePromise;
+  };
+
+  /** Title airing right now (synchronous, for list rows); '' until the guide is loaded or if unknown. */
+  P.nowTitle = function (item) {
+    if (!this.guide) return '';
+    var l = IPTV.XmlTv.lookup(this.guide, item, Date.now(), 1);
+    return l.length && l[0].start <= Date.now() ? l[0].title : '';
+  };
 
   P.cacheKey = function () { return 'pl:' + this.cfg.id + ':lib'; };
   P.age = function () { return this.updatedAt; };
@@ -35,7 +92,8 @@
       if (!parsed.items.length) throw new Error('No channels found. Is this really an M3U playlist?');
       var lib = IPTV.M3U.buildLibrary(parsed.items);
       self.updatedAt = Date.now();
-      if (self.store) self.store.set(self.cacheKey(), { at: self.updatedAt, lib: self.strip(lib) });
+      self.epgUrl = parsed.epgUrl;
+      if (self.store) self.store.set(self.cacheKey(), { at: self.updatedAt, lib: self.strip(lib), epgUrl: parsed.epgUrl });
       return lib;
     });
   };
@@ -73,6 +131,7 @@
         if (usable && !force) {
           self.lib = self.inflate(rec.lib);
           self.updatedAt = rec.at;
+          self.epgUrl = rec.epgUrl || '';
           if (self.isStale(rec.at, self.getSettings().refreshHours)) self.refreshInBackground();
           return;
         }
@@ -80,9 +139,12 @@
           if (!usable) throw err;
           self.lib = self.inflate(rec.lib);
           self.updatedAt = rec.at;
+          self.epgUrl = rec.epgUrl || '';
           if (self.onNotice) self.onNotice('Provider not reachable: showing the copy saved ' + self.describeAge(rec.at));
         });
-      }).catch(function (err) {
+      }).then(function () {
+        self.loadGuide();                 // background: the list does not wait for it
+      }, function (err) {
         self.pending = null;
         throw err;
       });
@@ -109,7 +171,10 @@
   };
 
   P.urlFor = function (item) { return item.url; };
-  P.epg = function () { return Promise.resolve([]); };
+  P.epg = function (item) {
+    var self = this;
+    return this.loadGuide().then(function (g) { return g ? IPTV.XmlTv.lookup(g, item, Date.now(), 4) : []; });
+  };
   P.seriesInfo = function () { return Promise.reject(new Error('Series browsing needs an Xtream account.')); };
 
   /** Saved copies of downloaded playlists (IndexedDB). */

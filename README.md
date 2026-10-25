@@ -11,7 +11,9 @@ You bring your own playlist or provider login; the app ships with **no channels 
 
 - **Xtream Codes** logins (verified on save) and **M3U / M3U8** URLs, multiple playlists
 - **Live TV, Movies, Series** (seasons and episodes), categories, search, **favorites**, recently watched
-- **EPG** now/next for Xtream live channels (list panel and player overlay)
+- **Program guide (EPG)**: now/next for Xtream live channels, and **XMLTV for M3U playlists** (taken from the playlist's
+  `x-tvg-url` or a URL you enter; plain or gzipped; matched by `tvg-id` or channel name). Shown as "now playing" on every
+  channel row, in the info panel and in the player overlay. Loaded in the background and saved for 12 h
 - **Smart cache for movies and episodes** (MP4): reads ahead in small range requests, keeps a rolling cache in memory,
   waits for a head start before playing and refills after an underrun instead of stuttering. See [Smart cache](#smart-cache)
 - **Seek anywhere**: click or drag on the progress bar with the Magic Remote (hover shows the time), type a time with the
@@ -27,7 +29,7 @@ You bring your own playlist or provider login; the app ships with **no channels 
 - HLS through the TV's native player, or **hls.js** (Settings) with a configurable read-ahead for movies
 - Magic Remote and D-pad friendly: colour keys, media keys, pointer clicks
 - Handles huge playlists (tens of thousands of channels): only the visible rows exist in the DOM
-- No build step; vendored libraries: hls.js (Apache-2.0) and mp4box.js (BSD-3-Clause)
+- No build step; vendored libraries: hls.js (Apache-2.0), mp4box.js (BSD-3-Clause), pako inflate (MIT/zlib)
 
 ### Remote control
 
@@ -123,6 +125,7 @@ app/                 the webOS app (this folder is what ares-package ships)
   appinfo.json
   js/m3u.js          M3U parser (also runs in Node for tests)
   js/xtream.js       Xtream Codes API client (also runs in Node)
+  js/xmltv.js        XMLTV guide parser: regex-based, time-sliced, windowed (also runs in Node)
   js/cache-player.js smart cache: MP4 over MediaSource, read-ahead, eviction, refill policy (policy is unit-tested)
   js/library-cache.js saved playlists (IndexedDB) + refresh policy
   js/continue.js     "Continue watching" list building (unit-tested)
@@ -144,7 +147,7 @@ tests/                  unit + e2e
 
 ## Not implemented yet
 
-XMLTV EPG for plain M3U playlists and a channel guide grid, subtitles, catch-up/timeshift, parental lock/PIN, trailers, entering playlists from a phone, MKV caching, multi-view/PiP, Stalker portals, UI translations/RTL.
+a full-screen channel guide grid (timeline), XMLTV for Xtream accounts, subtitles, catch-up/timeshift, parental lock/PIN, trailers, entering playlists from a phone, MKV caching, multi-view/PiP, Stalker portals, UI translations/RTL.
 
 Plain-M3U movies/series are detected only from Xtream-style URLs (`/movie/`, `/series/`) or video file extensions; everything else is Live.
 Browsers cannot send custom HTTP headers for media, so `|User-Agent=...` suffixes in M3U URLs are ignored.
@@ -162,4 +165,5 @@ Libraries used: [hls.js](https://github.com/video-dev/hls.js), [mp4box.js](https
 ## License
 
 Apache-2.0, see [LICENSE](LICENSE). Vendored: `app/js/vendor/hls.min.js` ([hls.js](https://github.com/video-dev/hls.js), Apache-2.0,
-`hls.js.LICENSE`) and `app/js/vendor/mp4box.all.min.js` ([mp4box.js](https://github.com/gpac/mp4box.js), BSD-3-Clause, `mp4box.js.LICENSE`).
+`hls.js.LICENSE`) `app/js/vendor/mp4box.all.min.js` ([mp4box.js](https://github.com/gpac/mp4box.js), BSD-3-Clause, `mp4box.js.LICENSE`) and
+`app/js/vendor/pako_inflate.min.js` ([pako](https://github.com/nodeca/pako), MIT and zlib, `pako.LICENSE`).

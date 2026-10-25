@@ -26,8 +26,9 @@
     /** Current text of every field, so rebuilding the form (type switch) keeps what was typed. */
     function snapshot() {
       var out = {};
-      ['name', 'url', 'server', 'username', 'password'].forEach(function (k) {
-        out[k] = fields[k] ? fields[k].input.value : (editing ? editing[k] : '');
+      // field name -> playlist property
+      [['name', 'name'], ['url', 'url'], ['epg', 'epgUrl'], ['server', 'server'], ['username', 'username'], ['password', 'password']].forEach(function (m) {
+        out[m[1]] = fields[m[0]] ? fields[m[0]].input.value : (editing ? editing[m[1]] : '');
       });
       return out;
     }
@@ -39,11 +40,12 @@
         type = v; clearFailure(); build();
       });
       fields.url = W.input('Playlist URL', pl.url, { placeholder: 'http://example.com/playlist.m3u' });
+      fields.epg = W.input('Program guide URL (optional, XMLTV or .gz)', pl.epgUrl, { placeholder: 'taken from the playlist when it has one' });
       fields.server = W.input('Server URL', pl.server, { placeholder: 'http://example.com:8080' });
       fields.username = W.input('Username', pl.username);
       fields.password = W.input('Password', pl.password);
       var items = [fields.name, fields.type];
-      if (type === 'm3u') items.push(fields.url); else items.push(fields.server, fields.username, fields.password);
+      if (type === 'm3u') items.push(fields.url, fields.epg); else items.push(fields.server, fields.username, fields.password);
       items.push(saveBtn, cancelBtn);
       var idx = zone ? zone.index : 0;
       IPTV.clear(list);
@@ -69,6 +71,8 @@
       if (type === 'm3u') {
         pl.url = fields.url.input.value.trim();
         if (!/^https?:\/\//i.test(pl.url)) { setStatus('Enter a full playlist URL starting with http:// or https://', true); return; }
+        pl.epgUrl = fields.epg.input.value.trim();
+        if (pl.epgUrl && !/^https?:\/\//i.test(pl.epgUrl)) { setStatus('The program guide address must start with http:// or https://', true); return; }
         pl.name = pl.name || IPTV.Screens.hostName(pl.url);
         finish(pl);
         return;

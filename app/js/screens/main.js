@@ -84,10 +84,14 @@
     function renderItem(it) {
       var fav = Store.isFav(pl.id, it.key);
       if (it.kind === 'live') {
+        var nowText = provider.nowTitle ? provider.nowTitle(it) : '';     // synchronous: only when a guide is loaded
         return h('div', { className: 'row-live' }, [
           h('span', { className: 'rl-num', text: it.num }),
           h('div', { className: 'rl-logo' }, it.logo ? poster(it) : null),
-          h('span', { className: 'rl-name', text: it.name }),
+          h('div', { className: 'rl-text' }, [
+            h('div', { className: 'rl-name', text: it.name }),
+            nowText ? h('div', { className: 'rl-now', text: nowText }) : null
+          ]),
           fav ? h('span', { className: 'star', text: '★' }) : null
         ]);
       }
@@ -353,6 +357,11 @@
         provider = IPTV.createProvider(pl);
         provider.onNotice = function (msg) { IPTV.toast(msg, 5000); };
         provider.onRefresh = onRefreshed;
+        provider.onGuide = function () {                        // program guide finished loading in the background
+          if (kind !== 'live' || !section) return;
+          content.refresh();
+          if (content.current()) onItemFocus(content.current());
+        };
         kinds = ['live', 'vod', 'series'];
         kind = 'live';
         buildTabs();
