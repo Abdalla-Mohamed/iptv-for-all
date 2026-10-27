@@ -83,6 +83,8 @@ Limits you should know about:
 
 ## Install on your TV
 
+Prebuilt `.ipk`: [`releases/`](releases/). Arabic step-by-step guide: [docs/INSTALL-ar.md](docs/INSTALL-ar.md).
+
 You need an LG TV on **webOS 4.0 or newer (2018+)**. Sideloading uses LG's Developer Mode.
 
 1. On the TV: install **Developer Mode** from the LG Content Store, sign in with a free LG developer account, switch Dev Mode and *Key Server* on, and note the TV's IP address.
