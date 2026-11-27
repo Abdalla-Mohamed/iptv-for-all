@@ -149,6 +149,14 @@ tools/mock-server.mjs   fake Xtream + M3U provider, range-capable media server w
 tests/                  unit + e2e
 ```
 
+## Documentation
+
+- [docs/PROJECT-OVERVIEW-ar.md](docs/PROJECT-OVERVIEW-ar.md): what was built, how it is structured, how it was tested, history (Arabic)
+- [docs/INSTALL-ar.md](docs/INSTALL-ar.md): installing the `.ipk` on an LG TV (Arabic)
+- [docs/ANDROID-ar.md](docs/ANDROID-ar.md): converting to Android / Android TV: options, problems and a step-by-step plan (Arabic).
+  Short version: the app is plain web code, so a WebView wrapper reuses almost all of it; an ExoPlayer bridge gives better codec/MKV support.
+  Not built or tested yet (no Android SDK was available).
+
 ## Status
 
 - Developed and tested in desktop Chromium against the mock server: unit tests, a keyboard/pointer-driven end-to-end run,
